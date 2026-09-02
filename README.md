@@ -1,89 +1,68 @@
 # IMAP Plugin
 
-IMAP Plugin is a provider-independent Codex plugin for connecting one mailbox locally on Windows or macOS. The user supplies the server, port, username, authentication secret, and TLS mode; no provider, domain, account, or mailbox is built in.
+Use your existing email account in Codex on Windows or macOS.
 
-> **Beta:** Windows and macOS run in CI, and the Windows handoff is self-verifying. The installers are not yet signed or notarized, and live clean-machine acceptance is still required on each platform. Use a dedicated test mailbox until that acceptance is complete.
+IMAP Plugin connects Codex directly to an IMAP mailbox on your computer. It works with most email providers that offer IMAP, so it is not tied to Gmail, Outlook, or any other single provider.
 
-## Compatibility
+## What can it do?
 
-- Windows 10/11 x64, or macOS 13 or newer.
-- Codex desktop or CLI installed for the current user.
-- A standards-based IMAP server using implicit TLS or mandatory STARTTLS.
-- Username/password or provider-issued app-password authentication.
-- Optional SMTP using implicit TLS or mandatory STARTTLS.
+- Find and read emails when you ask.
+- Show recent messages and email conversations.
+- Help identify important messages, action points, newsletters, and possible phishing.
+- Prepare replies and send one reviewed message at a time.
+- Move messages safely to folders such as Trash or Junk after confirmation.
+- Download attachments with safer filenames and operating-system security markers.
+- Add the optional [IMAP Dashboard](../imap-dashboard) for a visual inbox in Codex.
 
-OAuth-only providers are not supported in version 0.1.0. Read operations work across ordinary IMAP folders. Actions such as safe Trash, Junk, drafts, restore, and sending remain unavailable unless the server proves the required capabilities and SPECIAL-USE folders.
+Nothing happens automatically just because the plugin is installed or opened. Reading, changing, downloading, and sending happen only when requested, with an extra review step before consequential actions.
 
-## Capabilities
+## Private by design
 
-- Bounded folder listing, recent-message listing, search, message and thread reading.
-- Local advisory phishing, priority, cleanup, and advertising classification.
-- Exact native review before every mailbox or settings change.
-- Reversible move-to-Trash only; no permanent delete or expunge.
-- Reviewed single-message drafting and sending when SMTP and safe mailbox capabilities are available.
-- Reviewed attachment download with safe naming, a Windows Mark of the Web or macOS quarantine marker, and an operating-system scan when available.
-- Guarded RFC 8058 and browser-based unsubscribe workflows.
+Your mailbox password is entered in a masked setup window and saved by Windows Credential Manager or macOS Keychain. It is not placed in the plugin files, configuration files, logs, or installation package.
 
-## Privacy and safety
+The plugin has no advertising, analytics, telemetry, hosted mail relay, or separate cloud account. Email content is only retrieved when you ask Codex to work with it.
 
-Mail content is treated as untrusted data. Passwords are entered only in a masked local form and stored in Windows Credential Manager or macOS Keychain. Configuration files contain server settings but never passwords, tokens, or mailbox content. The plugin has no hosted backend, telemetry, analytics, or automatic sending.
+## Install with Codex
 
-See [Security](docs/SECURITY.md) and [Operations](docs/OPERATIONS.md) for the exact boundaries.
+You do not need to understand the source code or run technical commands yourself.
 
-## Let Codex install it
+1. Copy the URL of this GitHub page.
+2. Open a new task in Codex.
+3. Paste the URL and this instruction:
 
-Give Codex the URL of this repository and say: **“Read `CODEX_INSTALL.md` and install this plugin.”** Codex detects Windows or macOS, verifies the relevant files, runs the platform installer, pauses for the user's private masked password entry, and completes a read-only acceptance check.
+   **Read `CODEX_INSTALL.md` and install this plugin.**
 
-See [CODEX_INSTALL.md](CODEX_INSTALL.md) for the complete cross-platform instruction.
-Codex-specific repository guidance lives in [AGENTS.md](AGENTS.md), with bounded repair steps in [Troubleshooting](docs/TROUBLESHOOTING.md).
+4. Codex checks your computer, installs the right version, and opens a private setup window for your email details.
+5. When installation is complete, start a fresh Codex task and ask it to check your mail connection.
 
-## Optional dashboard
+Codex can repair common installation problems and verifies the connection without sending or changing email.
 
-[IMAP Dashboard](../imap-dashboard) is a separate, optional Codex plugin that adds a side-panel mailbox interface. Install the IMAP Plugin backend first, then give Codex the dashboard repository URL and ask it to read `CODEX_INSTALL.md` and install the dashboard.
+## Add the visual dashboard
 
-The dashboard reuses this plugin's local connector, configuration, protected credential identity, state, and action engine. Mailbox details are entered only once: the dashboard never asks for, copies, or stores a second password. Both plugins remain installed and independently available in Codex.
+The optional [IMAP Dashboard](../imap-dashboard) adds a side-panel inbox with folders, messages, actions, and highlights. Install IMAP Plugin first, then give Codex the dashboard link and say:
 
-## Install on Windows
+**Read `CODEX_INSTALL.md` and install IMAP Dashboard. Use my existing IMAP Plugin setup.**
 
-1. Download `imap-plugin-windows-x64.zip` from the [latest GitHub Release](../../releases/latest).
-2. Extract the archive to a new folder.
-3. Run `verify.ps1` from that extracted folder.
-4. Run `install.ps1` and enter the mailbox settings only in the native setup window.
-5. Start a new Codex task and call `setup_status` followed by `mail_health`.
+The dashboard uses the same local mailbox connection and protected login. You enter your email details only once, and both plugins remain available in Codex.
 
-The included `SKILL.md` gives a receiving Codex task the same installation and safety instructions. `uninstall.ps1` removes Codex registration while preserving local mailbox settings and credentials unless the user separately requests their deletion.
+## What do I need?
 
-## Install on macOS
+- Windows 10/11 or macOS 13 or newer.
+- Codex desktop or Codex CLI.
+- An email provider that supports IMAP with TLS.
+- Your IMAP server details and a password or provider-issued app password.
+- SMTP details only if you also want to send email.
 
-The macOS source installer is intentionally explicit while the notarized release archive is still pending:
+Providers that require OAuth and do not allow an app password are not supported in version 0.1.0.
 
-```sh
-./scripts/install_macos.sh
-```
+## Current release
 
-It requires Python 3.12, creates an isolated local environment under `~/Library/Application Support/IMAP Plugin`, installs the pinned dependencies, writes a local platform launcher, registers the plugin, opens the masked Keychain-backed setup, and runs the read-only doctor. `scripts/uninstall_macos.sh` unregisters the plugin but preserves settings, Keychain items, downloads, and backups. Do not pipe an installer from the web directly into a shell; download or clone the repository and inspect it first.
+Downloadable files and checksums are available on the [latest release page](../../releases/latest). The current version is a beta: Windows and macOS are tested automatically, but the installers are not yet signed or notarized. For a first test, using a dedicated test mailbox is recommended.
 
-## Development
+## More information
 
-Windows:
-
-```powershell
-powershell.exe -NoLogo -NoProfile -File .\scripts\build_runtime.ps1
-.\runtime\python\python.exe -m pytest tests
-powershell.exe -NoLogo -NoProfile -File .\scripts\build_handoff.ps1
-```
-
-Portable checks on Windows or macOS:
-
-```sh
-python -m pip install -r requirements-runtime.lock -r requirements-dev.lock
-PYTHONPATH=src IMAP_PLUGIN_TEST_MODE=1 python -m pytest tests
-python scripts/privacy_scan.py .
-python scripts/validate_structure.py
-```
-
-The Windows build produces a self-contained archive with a pinned Python runtime, file manifest, installer, verifier, and rollback script. macOS currently uses the source installer and needs live signing/notarization acceptance before a prebuilt release is claimed.
-
-## License
-
-MIT. See [LICENSE](LICENSE).
+- [Installation instructions for Codex](CODEX_INSTALL.md)
+- [Privacy and security](docs/SECURITY.md)
+- [Troubleshooting](docs/TROUBLESHOOTING.md)
+- [Technical architecture](docs/ARCHITECTURE.md)
+- [License](LICENSE)
