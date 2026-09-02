@@ -37,6 +37,12 @@ Give Codex the URL of this repository and say: **“Read `CODEX_INSTALL.md` and 
 See [CODEX_INSTALL.md](CODEX_INSTALL.md) for the complete cross-platform instruction.
 Codex-specific repository guidance lives in [AGENTS.md](AGENTS.md), with bounded repair steps in [Troubleshooting](docs/TROUBLESHOOTING.md).
 
+## Optional dashboard
+
+[IMAP Dashboard](../imap-dashboard) is a separate, optional Codex plugin that adds a side-panel mailbox interface. Install the IMAP Plugin backend first, then give Codex the dashboard repository URL and ask it to read `CODEX_INSTALL.md` and install the dashboard.
+
+The dashboard reuses this plugin's local connector, configuration, protected credential identity, state, and action engine. Mailbox details are entered only once: the dashboard never asks for, copies, or stores a second password. Both plugins remain installed and independently available in Codex.
+
 ## Install on Windows
 
 1. Download `imap-plugin-windows-x64.zip` from the [latest GitHub Release](../../releases/latest).
