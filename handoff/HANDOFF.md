@@ -10,7 +10,7 @@ When this package is handled by Codex, `CODEX_INSTALL.md` is the cross-platform 
 2. Read `SKILL.md` completely.
 3. Run `powershell.exe -NoLogo -NoProfile -File .\verify.ps1`.
 4. Run `powershell.exe -NoLogo -NoProfile -STA -File .\install.ps1`.
-5. Enter the IMAP and optional SMTP settings only in the native Windows form.
+5. Enter only the email address and one password or app password in the native Windows form. Secure IMAP and optional SMTP settings are found automatically.
 6. Require the final read-only doctor result to pass.
 7. Start a new Codex task and confirm `setup_status` and `mail_health`.
 
@@ -24,7 +24,7 @@ Passwords or app passwords must never be placed in chat, shell commands, environ
 - Username/password or app-password authentication.
 - Optional SMTP using implicit TLS or mandatory STARTTLS.
 
-OAuth-only authentication is not supported in version 0.1.0. Provider-specific mailbox capabilities determine whether Trash, Junk, drafts, restore, and sending are available.
+OAuth-only authentication is not supported in version 0.1.1. Provider-specific mailbox capabilities determine whether Trash, Junk, drafts, restore, and sending are available. The plugin creates no scheduled background mailbox check.
 
 ## Rollback
 

@@ -41,7 +41,7 @@ Copy-Item -LiteralPath (Join-Path $pluginRoot 'docs') -Destination (Join-Path $p
 [IO.Directory]::CreateDirectory((Join-Path $payload 'runtime')) | Out-Null
 Copy-Item -LiteralPath (Join-Path $pluginRoot 'runtime\python') -Destination (Join-Path $payload 'runtime\python') -Recurse
 [IO.Directory]::CreateDirectory((Join-Path $payload 'scripts')) | Out-Null
-foreach ($name in @('configure.py', 'doctor.cmd', 'doctor.ps1', 'enroll_gui.ps1', 'launch.cmd', 'review.ps1', 'setup.cmd', 'verify_runtime.py')) {
+foreach ($name in @('autoconfigure.py', 'configure.py', 'doctor.cmd', 'doctor.ps1', 'enroll_gui.ps1', 'launch.cmd', 'review.ps1', 'setup.cmd', 'verify_runtime.py')) {
     Copy-Item -LiteralPath (Join-Path $pluginRoot "scripts\$name") -Destination (Join-Path $payload "scripts\$name")
 }
 Get-ChildItem -LiteralPath $payload -Directory -Recurse -Force | Where-Object { $_.Name -eq '__pycache__' } | Sort-Object FullName -Descending | ForEach-Object {

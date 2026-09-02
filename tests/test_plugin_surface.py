@@ -106,16 +106,45 @@ def test_native_review_confirmation_commits_exactly_once():
     assert operator.commits == 1
 
 
-def test_setup_password_visibility_is_opt_in_and_controls_both_confirmations():
-    source = (Path(__file__).parents[1] / "scripts" / "enroll_gui.ps1").read_text(encoding="utf-8")
-    assert "$showImapPassword.Checked = $false" in source
-    assert "$showSmtpPassword.Checked = $false" in source
-    assert "$imapPassword.UseSystemPasswordChar = $masked" in source
-    assert "$imapConfirm.UseSystemPasswordChar = $masked" in source
-    assert "$smtpPassword.UseSystemPasswordChar = $masked" in source
-    assert "$smtpConfirm.UseSystemPasswordChar = $masked" in source
-    assert source.count("$imapPassword.Clear()") >= 2
-    assert source.count("$smtpPassword.Clear()") >= 2
+def test_windows_setup_has_only_email_and_one_masked_password_field():
+    source = (Path(__file__).parents[1] / "scripts" / "enroll_gui.ps1").read_text(
+        encoding="utf-8"
+    )
+    assert "$password.UseSystemPasswordChar = $true" in source
+    assert "$showPassword.Checked = $false" in source
+    assert "$password.UseSystemPasswordChar = -not $showPassword.Checked" in source
+    assert source.count("$password.Clear()") >= 2
+    assert "RedirectStandardInput = $true" in source
+    assert "'Email address'" in source
+    assert "'Password'" in source
+    for technical_field in (
+        "IMAP username",
+        "IMAP server",
+        "Confirm IMAP",
+        "SMTP username",
+        "SMTP server",
+        "Confirm SMTP",
+        "Trusted auth server",
+        "Enable reviewed mailbox actions",
+    ):
+        assert technical_field not in source
+
+
+def test_macos_setup_has_the_same_two_field_experience():
+    source = (Path(__file__).parents[1] / "scripts" / "setup_macos.py").read_text(
+        encoding="utf-8"
+    )
+    assert 'text="Email address"' in source
+    assert 'text="Password"' in source
+    assert 'show="*"' in source
+    assert "simpledialog" not in source
+    for technical_field in (
+        "IMAP username",
+        "IMAP server",
+        "SMTP server",
+        "Trusted Authentication-Results",
+    ):
+        assert technical_field not in source
 
 
 class BulkBridge:

@@ -40,7 +40,7 @@ payload="$staging/plugins/imap-plugin"
 mkdir -p "$payload" "$staging/.agents/plugins"
 cp -R "$source_root/.codex-plugin" "$source_root/skills" "$source_root/src" "$payload/"
 mkdir -p "$payload/scripts" "$payload/runtime"
-for file in configure.py doctor_macos.sh launch_macos.sh review_macos.py setup_macos.py setup_macos.sh; do
+for file in autoconfigure.py configure.py doctor_macos.sh launch_macos.sh review_macos.py setup_macos.py setup_macos.sh; do
   cp "$source_root/scripts/$file" "$payload/scripts/$file"
 done
 for file in AGENTS.md CHANGELOG.md CODEX_INSTALL.md LICENSE PRIVACY.md README.md pyproject.toml requirements-runtime.lock; do
@@ -49,7 +49,7 @@ done
 cp -R "$source_root/docs" "$payload/"
 cp "$source_root/handoff/marketplace.json" "$staging/.agents/plugins/marketplace.json"
 cat > "$staging/release.json" <<'JSON'
-{"product":"imap-plugin-macos-source-installer","version":"0.1.0","platform":"macos","marketplace":"imap-plugin-handoff"}
+{"product":"imap-plugin-macos-source-installer","version":"0.1.1","platform":"macos","marketplace":"imap-plugin-handoff"}
 JSON
 
 python3 -m venv "$payload/runtime/venv"

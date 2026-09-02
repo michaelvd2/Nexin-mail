@@ -2,41 +2,13 @@ from __future__ import annotations
 
 import json
 import os
-import subprocess
-import sys
 import tempfile
 import tkinter as tk
-from pathlib import Path
-from tkinter import messagebox, simpledialog
+from tkinter import messagebox
 
+from imap_plugin.autoconfig import AutoConfigurationError, autoconfigure
 from imap_plugin.config import AccountConfig, config_path
 from imap_plugin.credentials import platform_store
-
-
-def _ask(label: str, *, initial: str = "", secret: bool = False) -> str | None:
-    return simpledialog.askstring(
-        "IMAP Plugin setup",
-        label,
-        initialvalue=initial,
-        show="*" if secret else None,
-    )
-
-
-def _port(value: str | None, label: str) -> int:
-    try:
-        number = int(value or "")
-    except ValueError as exc:
-        raise ValueError(f"{label} must be a number between 1 and 65535") from exc
-    if not 1 <= number <= 65535:
-        raise ValueError(f"{label} must be between 1 and 65535")
-    return number
-
-
-def _security(value: str | None, label: str) -> str:
-    normalized = (value or "").strip().casefold()
-    if normalized not in {"implicit_tls", "starttls"}:
-        raise ValueError(f"{label} must be implicit_tls or starttls")
-    return normalized
 
 
 def _toml_string(value: str) -> str:
@@ -55,7 +27,9 @@ def _write_config(settings: AccountConfig) -> None:
         f"imap_security = {_toml_string(settings.imap_security)}",
         'credential_target = "imap-plugin/imap"',
         'smtp_credential_target = "imap-plugin/smtp"',
-        "trusted_authserv_ids = [" + ", ".join(_toml_string(value) for value in settings.trusted_authserv_ids) + "]",
+        "trusted_authserv_ids = ["
+        + ", ".join(_toml_string(value) for value in settings.trusted_authserv_ids)
+        + "]",
         f"operator_enabled = {'true' if settings.operator_enabled else 'false'}",
         "timeout_seconds = 15.0",
         "max_results = 20",
@@ -66,15 +40,19 @@ def _write_config(settings: AccountConfig) -> None:
         "trace_files = 3",
     ]
     if settings.send_configured:
-        values.extend([
-            f"smtp_host = {_toml_string(settings.smtp_host or '')}",
-            f"smtp_port = {settings.smtp_port}",
-            f"smtp_security = {_toml_string(settings.smtp_security)}",
-            f"smtp_username = {_toml_string(settings.smtp_login)}",
-        ])
+        values.extend(
+            [
+                f"smtp_host = {_toml_string(settings.smtp_host or '')}",
+                f"smtp_port = {settings.smtp_port}",
+                f"smtp_security = {_toml_string(settings.smtp_security)}",
+                f"smtp_username = {_toml_string(settings.smtp_login)}",
+            ]
+        )
     destination = config_path()
     destination.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-    descriptor, temporary = tempfile.mkstemp(prefix="config.", suffix=".tmp", dir=destination.parent)
+    descriptor, temporary = tempfile.mkstemp(
+        prefix="config.", suffix=".tmp", dir=destination.parent
+    )
     try:
         with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as handle:
             handle.write("\n".join(values) + "\n")
@@ -87,109 +65,149 @@ def _write_config(settings: AccountConfig) -> None:
             os.unlink(temporary)
 
 
+def _discovery_hints() -> dict[str, object] | None:
+    raw = os.getenv("IMAP_PLUGIN_DISCOVERY_HINTS", "").strip()
+    if not raw:
+        return None
+    value = json.loads(raw)
+    if not isinstance(value, dict):
+        raise ValueError("Provider settings are invalid")
+    return value
+
+
 def main() -> int:
     root = tk.Tk()
-    root.withdraw()
-    try:
-        messagebox.showinfo(
-            "IMAP Plugin setup",
-            "Connect one standards-based IMAP mailbox. Passwords stay in macOS Keychain and never enter Codex chat or configuration files.",
-        )
-        email_address = _ask("Mailbox email address")
-        username = _ask("IMAP username", initial=email_address or "")
-        host = _ask("IMAP server DNS name (for example imap.example.com)")
-        security = _security(_ask("IMAP security: implicit_tls or starttls", initial="implicit_tls"), "IMAP security")
-        port = _port(_ask("IMAP port", initial="993" if security == "implicit_tls" else "143"), "IMAP port")
-        password = _ask("IMAP password or app password", secret=True)
-        confirmation = _ask("Confirm IMAP password", secret=True)
-        if None in {email_address, username, host, password, confirmation}:
-            return 1
-        if not password or password != confirmation:
-            raise ValueError("IMAP passwords are empty or do not match")
+    root.title("IMAP Plugin - secure setup")
+    root.resizable(False, False)
+    root.geometry("560x310")
 
-        smtp_enabled = messagebox.askyesno("IMAP Plugin setup", "Configure SMTP for reviewed sending?")
-        smtp_values: dict[str, object] = {}
-        smtp_password: str | None = None
-        if smtp_enabled:
-            smtp_host = _ask("SMTP server DNS name")
-            smtp_security = _security(_ask("SMTP security: implicit_tls or starttls", initial="implicit_tls"), "SMTP security")
-            smtp_port = _port(_ask("SMTP port", initial="465" if smtp_security == "implicit_tls" else "587"), "SMTP port")
-            smtp_username = _ask("SMTP username", initial=username or "")
-            reuse = messagebox.askyesno("IMAP Plugin setup", "Use the same password for SMTP?")
-            if reuse:
-                smtp_password = password
-            else:
-                smtp_password = _ask("SMTP password or app password", secret=True)
-                smtp_confirmation = _ask("Confirm SMTP password", secret=True)
-                if not smtp_password or smtp_password != smtp_confirmation:
-                    raise ValueError("SMTP passwords are empty or do not match")
-            if None in {smtp_host, smtp_username}:
-                return 1
-            smtp_values = {
-                "smtp_host": smtp_host,
-                "smtp_port": smtp_port,
-                "smtp_security": smtp_security,
-                "smtp_username": smtp_username,
-            }
+    email_value = tk.StringVar()
+    password_value = tk.StringVar()
+    show_value = tk.BooleanVar(value=False)
+    status_value = tk.StringVar(value="")
+    completed = False
 
-        trusted_raw = _ask("Trusted Authentication-Results hostnames, comma-separated (optional)", initial="")
-        if trusted_raw is None:
-            return 1
-        trusted = tuple(value.strip() for value in trusted_raw.split(",") if value.strip())
-        request_operator = messagebox.askyesno(
-            "IMAP Plugin setup",
-            "Enable reviewed mailbox actions after the read-only connection check passes?",
-        )
-        base = dict(
-            username=username or "",
-            email_address=email_address,
-            host=host or "",
-            port=port,
-            imap_security=security,
-            trusted_authserv_ids=trusted,
-            operator_enabled=False,
-            **smtp_values,
-        )
-        settings = AccountConfig(**base)
-        store = platform_store()
-        store.write_secret(settings.credential_target, password)
-        if smtp_enabled and smtp_password is not None:
-            store.write_secret(settings.smtp_credential_target, smtp_password)
-        _write_config(settings)
+    frame = tk.Frame(root, padx=28, pady=24)
+    frame.pack(fill="both", expand=True)
 
-        environment = os.environ.copy()
-        environment["IMAP_PLUGIN_PROFILE"] = "read"
-        environment["PYTHONDONTWRITEBYTECODE"] = "1"
-        completed = subprocess.run(
-            [sys.executable, "-m", "imap_plugin.cli", "doctor"],
-            text=True,
-            encoding="utf-8",
-            errors="strict",
-            capture_output=True,
-            timeout=90,
-            check=False,
-            env=environment,
-        )
-        try:
-            report = json.loads(completed.stdout)
-        except json.JSONDecodeError:
-            report = {}
-        if completed.returncode != 0 or report.get("connectivity") != "pass":
-            raise RuntimeError("Connection verification failed. Credentials remain local and mailbox actions remain disabled.")
-        if request_operator:
-            if not report.get("mailbox_actions_ready"):
-                raise RuntimeError("Reading works, but safe MOVE, Drafts, or Trash support is missing. Mailbox actions remain disabled.")
-            _write_config(AccountConfig(**{**base, "operator_enabled": True}))
-        messagebox.showinfo(
-            "IMAP Plugin setup",
-            "Connection verified. Reviewed mailbox actions are enabled." if request_operator else "Connection verified in safe read mode.",
-        )
-        return 0
-    except Exception as exc:
-        messagebox.showerror("IMAP Plugin setup", str(exc))
-        return 1
-    finally:
+    tk.Label(
+        frame,
+        text="Connect your email",
+        font=("TkDefaultFont", 18, "bold"),
+        anchor="w",
+    ).grid(row=0, column=0, columnspan=3, sticky="w")
+    tk.Label(
+        frame,
+        text=(
+            "Enter your email address and password. The plugin safely finds and "
+            "checks the provider settings for you."
+        ),
+        justify="left",
+        wraplength=500,
+        anchor="w",
+    ).grid(row=1, column=0, columnspan=3, sticky="w", pady=(8, 20))
+
+    tk.Label(frame, text="Email address", anchor="w").grid(
+        row=2, column=0, sticky="w", pady=6
+    )
+    email_entry = tk.Entry(frame, textvariable=email_value, width=46)
+    email_entry.grid(row=2, column=1, columnspan=2, sticky="ew", pady=6)
+
+    tk.Label(frame, text="Password", anchor="w").grid(
+        row=3, column=0, sticky="w", pady=6
+    )
+    password_entry = tk.Entry(frame, textvariable=password_value, show="*", width=46)
+    password_entry.grid(row=3, column=1, sticky="ew", pady=6)
+
+    def toggle_password() -> None:
+        password_entry.configure(show="" if show_value.get() else "*")
+
+    tk.Checkbutton(
+        frame,
+        text="Show",
+        variable=show_value,
+        command=toggle_password,
+    ).grid(row=3, column=2, sticky="w", padx=(8, 0))
+
+    status = tk.Label(
+        frame,
+        textvariable=status_value,
+        justify="left",
+        wraplength=500,
+        anchor="w",
+        fg="#8B1A1A",
+    )
+    status.grid(row=4, column=0, columnspan=3, sticky="w", pady=(12, 8))
+
+    buttons = tk.Frame(frame)
+    buttons.grid(row=5, column=0, columnspan=3, sticky="e", pady=(8, 0))
+
+    def cancel() -> None:
+        password_value.set("")
         root.destroy()
+
+    def connect() -> None:
+        nonlocal completed
+        password = password_value.get()
+        connect_button.configure(state="disabled")
+        status.configure(fg="#333333")
+        status_value.set("Finding your provider settings and checking the connection...")
+        root.update_idletasks()
+        try:
+            result = autoconfigure(
+                email_value.get(),
+                password,
+                hints=_discovery_hints(),
+            )
+            store = platform_store()
+            store.write_secret(result.settings.credential_target, password)
+            if result.settings.send_configured:
+                store.write_secret(result.settings.smtp_credential_target, password)
+            _write_config(result.settings)
+
+            features = ["reading"]
+            if result.mailbox_actions_ready:
+                features.append("reviewed mailbox actions")
+            if result.send_ready:
+                features.append("reviewed sending")
+            completed = True
+            password_value.set("")
+            messagebox.showinfo(
+                "IMAP Plugin setup",
+                "Connected successfully. Ready for " + ", ".join(features) + ".",
+            )
+            root.destroy()
+        except AutoConfigurationError as exc:
+            status.configure(fg="#8B1A1A")
+            status_value.set(str(exc))
+        except Exception:
+            status.configure(fg="#8B1A1A")
+            status_value.set(
+                "Setup could not be completed. No password was written to a file."
+            )
+        finally:
+            password = ""
+            password_value.set("")
+            if not completed and root.winfo_exists():
+                connect_button.configure(state="normal")
+
+    tk.Button(buttons, text="Cancel", width=11, command=cancel).pack(
+        side="right", padx=(8, 0)
+    )
+    connect_button = tk.Button(
+        buttons,
+        text="Connect",
+        width=14,
+        command=connect,
+        default="active",
+    )
+    connect_button.pack(side="right")
+
+    root.protocol("WM_DELETE_WINDOW", cancel)
+    root.bind("<Return>", lambda _event: connect())
+    email_entry.focus_set()
+    root.mainloop()
+    return 0 if completed else 1
 
 
 if __name__ == "__main__":

@@ -2,9 +2,11 @@
 
 ## Enrollment
 
-On Windows, `scripts/enroll_gui.ps1` collects provider-independent settings in a native masked form and stores passwords in Windows Credential Manager. On macOS, `scripts/setup_macos.py` uses a local masked form and stores passwords in Keychain. Only nonsecret settings are written under `%LOCALAPPDATA%\imap-plugin` on Windows or `~/Library/Application Support/IMAP Plugin` on macOS.
+On Windows, `scripts/enroll_gui.ps1` asks only for an email address and one masked password or app password, then stores the password in Windows Credential Manager after a successful IMAP check. On macOS, `scripts/setup_macos.py` provides the same two-field flow and stores the password in Keychain. Provider settings are discovered automatically; Codex may supply nonsecret official-provider hints after a safe domain-only lookup. Only nonsecret settings are written under `%LOCALAPPDATA%\imap-plugin` on Windows or `~/Library/Application Support/IMAP Plugin` on macOS.
 
 IMAP supports implicit TLS and mandatory STARTTLS. SMTP supports the same two protected modes. Plaintext transport, IP-literal server targets, disabled certificate validation, and unverified hostnames are rejected.
+
+The plugin does not register a scheduled task or launch agent and never polls the mailbox in the background.
 
 ## Capability gates
 

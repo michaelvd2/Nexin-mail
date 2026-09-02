@@ -70,41 +70,21 @@ function Escape-TomlString([string]$Value) {
     return $Value.Replace('\', '\\').Replace('"', '\"')
 }
 
-function Normalize-DnsHost([string]$Value) {
-    $candidate = $Value.Trim().TrimEnd('.')
-    if ([string]::IsNullOrWhiteSpace($candidate)) { throw 'Mail server names are required.' }
-    $parsedAddress = $null
-    if ([System.Net.IPAddress]::TryParse($candidate, [ref]$parsedAddress)) { throw 'Use a DNS server name, not an IP address.' }
-    $idn = New-Object System.Globalization.IdnMapping
-    $ascii = $idn.GetAscii($candidate).ToLowerInvariant()
-    if ([Uri]::CheckHostName($ascii) -ne [UriHostNameType]::Dns) { throw "Invalid DNS server name: $candidate" }
-    return $ascii
-}
-
-function Read-Port([string]$Value, [string]$Name) {
-    $number = 0
-    if (-not [int]::TryParse($Value.Trim(), [ref]$number) -or $number -lt 1 -or $number -gt 65535) {
-        throw "$Name must be between 1 and 65535."
-    }
-    return $number
-}
-
-function Write-Config([hashtable]$Values, [bool]$OperatorEnabled) {
+function Write-Config([object]$Result) {
     $stateDirectory = Join-Path $env:LOCALAPPDATA 'imap-plugin'
     [IO.Directory]::CreateDirectory($stateDirectory) | Out-Null
     $configPath = Join-Path $stateDirectory 'config.toml'
-    $trusted = @($Values.TrustedAuthservIds | ForEach-Object { '"' + (Escape-TomlString $_) + '"' }) -join ', '
     $configurationLines = @(
         'account_id = "default"'
-        'username = "' + (Escape-TomlString $Values.ImapUsername) + '"'
-        'email_address = "' + (Escape-TomlString $Values.EmailAddress) + '"'
-        'host = "' + (Escape-TomlString $Values.ImapHost) + '"'
-        'port = ' + $Values.ImapPort
-        'imap_security = "' + (Escape-TomlString $Values.ImapSecurity) + '"'
+        'username = "' + (Escape-TomlString ([string]$Result.username)) + '"'
+        'email_address = "' + (Escape-TomlString ([string]$Result.email_address)) + '"'
+        'host = "' + (Escape-TomlString ([string]$Result.host)) + '"'
+        'port = ' + [int]$Result.port
+        'imap_security = "' + (Escape-TomlString ([string]$Result.imap_security)) + '"'
         'credential_target = "imap-plugin/imap"'
         'smtp_credential_target = "imap-plugin/smtp"'
-        'trusted_authserv_ids = [' + $trusted + ']'
-        'operator_enabled = ' + $(if ($OperatorEnabled) { 'true' } else { 'false' })
+        'trusted_authserv_ids = []'
+        'operator_enabled = ' + $(if ([bool]$Result.operator_enabled) { 'true' } else { 'false' })
         'timeout_seconds = 15.0'
         'max_results = 20'
         'max_scan = 250'
@@ -113,298 +93,182 @@ function Write-Config([hashtable]$Values, [bool]$OperatorEnabled) {
         'trace_max_bytes = 262144'
         'trace_files = 3'
     )
-    if ($Values.ConfigureSmtp) {
+    if ([bool]$Result.smtp_configured) {
         $configurationLines += @(
-            'smtp_host = "' + (Escape-TomlString $Values.SmtpHost) + '"'
-            'smtp_port = ' + $Values.SmtpPort
-            'smtp_security = "' + (Escape-TomlString $Values.SmtpSecurity) + '"'
-            'smtp_username = "' + (Escape-TomlString $Values.SmtpUsername) + '"'
+            'smtp_host = "' + (Escape-TomlString ([string]$Result.smtp_host)) + '"'
+            'smtp_port = ' + [int]$Result.smtp_port
+            'smtp_security = "' + (Escape-TomlString ([string]$Result.smtp_security)) + '"'
+            'smtp_username = "' + (Escape-TomlString ([string]$Result.smtp_username)) + '"'
         )
     }
-    $configuration = $configurationLines -join "`n"
-    $configuration += "`n"
     $temporary = Join-Path $stateDirectory ("config." + [Guid]::NewGuid().ToString('N') + '.tmp')
     try {
-        [IO.File]::WriteAllText($temporary, $configuration, (New-Object Text.UTF8Encoding($false)))
+        [IO.File]::WriteAllText($temporary, (($configurationLines -join "`n") + "`n"), (New-Object Text.UTF8Encoding($false)))
         Move-Item -LiteralPath $temporary -Destination $configPath -Force
         $identity = [Security.Principal.WindowsIdentity]::GetCurrent().Name
         & icacls.exe $configPath '/inheritance:r' '/grant:r' "${identity}:(F)" '/grant:r' 'SYSTEM:(F)' | Out-Null
-        if ($LASTEXITCODE -ne 0) { throw 'Could not apply the private configuration ACL.' }
+        if ($LASTEXITCODE -ne 0) { throw 'Could not protect the local configuration file.' }
     } finally {
         if (Test-Path -LiteralPath $temporary) { Remove-Item -LiteralPath $temporary -Force }
     }
-    return $configPath
 }
 
-function Add-Label([Windows.Forms.Form]$Form, [string]$Text, [int]$X, [int]$Y, [int]$Width = 145) {
-    $control = New-Object Windows.Forms.Label
-    $control.Location = New-Object Drawing.Point($X, $Y)
-    $control.Size = New-Object Drawing.Size($Width, 24)
-    $control.Text = $Text
-    $Form.Controls.Add($control)
-}
-
-function Add-TextBox([Windows.Forms.Form]$Form, [int]$X, [int]$Y, [int]$Width = 425) {
-    $control = New-Object Windows.Forms.TextBox
-    $control.Location = New-Object Drawing.Point($X, $Y)
-    $control.Size = New-Object Drawing.Size($Width, 24)
-    $Form.Controls.Add($control)
-    return $control
+function Invoke-AutoConfigure([string]$EmailAddress, [string]$Password) {
+    $pluginRoot = Split-Path -Parent $PSScriptRoot
+    $python = Join-Path $pluginRoot 'runtime\python\python.exe'
+    $helper = Join-Path $pluginRoot 'scripts\autoconfigure.py'
+    if (-not (Test-Path -LiteralPath $python -PathType Leaf) -or -not (Test-Path -LiteralPath $helper -PathType Leaf)) {
+        throw 'The verified local setup components are incomplete.'
+    }
+    $hints = $null
+    if (-not [string]::IsNullOrWhiteSpace($env:IMAP_PLUGIN_DISCOVERY_HINTS)) {
+        try { $hints = $env:IMAP_PLUGIN_DISCOVERY_HINTS | ConvertFrom-Json } catch { throw 'Codex supplied invalid provider hints.' }
+    }
+    $request = [ordered]@{ email_address = $EmailAddress; password = $Password; hints = $hints } | ConvertTo-Json -Compress -Depth 5
+    $start = New-Object Diagnostics.ProcessStartInfo
+    $start.FileName = $python
+    $start.Arguments = '-X utf8 "' + $helper.Replace('"', '\"') + '"'
+    $start.WorkingDirectory = $pluginRoot
+    $start.UseShellExecute = $false
+    $start.CreateNoWindow = $true
+    $start.RedirectStandardInput = $true
+    $start.RedirectStandardOutput = $true
+    $start.RedirectStandardError = $true
+    $start.EnvironmentVariables['PYTHONPATH'] = Join-Path $pluginRoot 'src'
+    $start.EnvironmentVariables['PYTHONDONTWRITEBYTECODE'] = '1'
+    $process = New-Object Diagnostics.Process
+    $process.StartInfo = $start
+    try {
+        if (-not $process.Start()) { throw 'Automatic setup could not start.' }
+        $process.StandardInput.Write($request)
+        $process.StandardInput.Close()
+        $request = $null
+        $output = $process.StandardOutput.ReadToEnd()
+        [void]$process.StandardError.ReadToEnd()
+        $process.WaitForExit()
+        if ([string]::IsNullOrWhiteSpace($output)) { throw 'Automatic setup returned no result.' }
+        try { $result = $output | ConvertFrom-Json } catch { throw 'Automatic setup returned an invalid result.' }
+        if ($process.ExitCode -ne 0 -or $result.status -ne 'configured') { throw [string]$result.message }
+        return $result
+    } finally {
+        $request = $null
+        $process.Dispose()
+    }
 }
 
 $form = New-Object Windows.Forms.Form
-$form.Text = 'IMAP Plugin — secure local setup'
-$form.Size = New-Object Drawing.Size(700, 790)
+$form.Text = 'IMAP Plugin - secure setup'
+$form.Size = New-Object Drawing.Size(610, 340)
 $form.StartPosition = 'CenterScreen'
 $form.TopMost = $true
 $form.FormBorderStyle = 'FixedDialog'
 $form.MaximizeBox = $false
 $form.MinimizeBox = $false
 
+$title = New-Object Windows.Forms.Label
+$title.Location = New-Object Drawing.Point(24, 20)
+$title.Size = New-Object Drawing.Size(550, 28)
+$title.Font = New-Object Drawing.Font('Segoe UI', 13, [Drawing.FontStyle]::Bold)
+$title.Text = 'Connect your email'
+$form.Controls.Add($title)
+
 $intro = New-Object Windows.Forms.Label
-$intro.Location = New-Object Drawing.Point(20, 16)
-$intro.Size = New-Object Drawing.Size(650, 42)
-$intro.Text = 'Connect one standards-based IMAP mailbox. SMTP is optional. Passwords stay in Windows Credential Manager and never enter Codex chat or configuration files.'
+$intro.Location = New-Object Drawing.Point(24, 52)
+$intro.Size = New-Object Drawing.Size(550, 40)
+$intro.Text = 'Enter only your email address and password. Secure server settings are detected automatically. Your password stays on this computer.'
 $form.Controls.Add($intro)
 
-Add-Label $form 'Email address' 20 70
-$email = Add-TextBox $form 170 67 485
-Add-Label $form 'IMAP username' 20 106
-$imapUsername = Add-TextBox $form 170 103 485
-Add-Label $form 'IMAP server' 20 142
-$imapHost = Add-TextBox $form 170 139 365
-$imapHost.Text = ''
-Add-Label $form 'Port' 545 142 35
-$imapPort = Add-TextBox $form 585 139 70
-$imapPort.Text = '993'
-Add-Label $form 'IMAP security' 20 178
-$imapSecurity = New-Object Windows.Forms.ComboBox
-$imapSecurity.Location = New-Object Drawing.Point(170, 175)
-$imapSecurity.Size = New-Object Drawing.Size(220, 24)
-$imapSecurity.DropDownStyle = 'DropDownList'
-[void]$imapSecurity.Items.Add('Implicit TLS')
-[void]$imapSecurity.Items.Add('Mandatory STARTTLS')
-$imapSecurity.SelectedIndex = 0
-$form.Controls.Add($imapSecurity)
-$imapSecurity.Add_SelectedIndexChanged({
-    if ($imapSecurity.SelectedIndex -eq 1 -and $imapPort.Text -eq '993') { $imapPort.Text = '143' }
-    if ($imapSecurity.SelectedIndex -eq 0 -and $imapPort.Text -eq '143') { $imapPort.Text = '993' }
-})
-Add-Label $form 'IMAP password' 20 214
-$imapPassword = Add-TextBox $form 170 211 350
-$imapPassword.UseSystemPasswordChar = $true
-$showImapPassword = New-Object Windows.Forms.CheckBox
-$showImapPassword.Location = New-Object Drawing.Point(530, 211)
-$showImapPassword.Size = New-Object Drawing.Size(125, 24)
-$showImapPassword.Text = 'Show password'
-$showImapPassword.Checked = $false
-$form.Controls.Add($showImapPassword)
-Add-Label $form 'Confirm IMAP' 20 250
-$imapConfirm = Add-TextBox $form 170 247 485
-$imapConfirm.UseSystemPasswordChar = $true
-$showImapPassword.Add_CheckedChanged({
-    $masked = -not $showImapPassword.Checked
-    $imapPassword.UseSystemPasswordChar = $masked
-    $imapConfirm.UseSystemPasswordChar = $masked
-})
+$emailLabel = New-Object Windows.Forms.Label
+$emailLabel.Location = New-Object Drawing.Point(24, 105)
+$emailLabel.Size = New-Object Drawing.Size(120, 24)
+$emailLabel.Text = 'Email address'
+$form.Controls.Add($emailLabel)
+$email = New-Object Windows.Forms.TextBox
+$email.Location = New-Object Drawing.Point(150, 102)
+$email.Size = New-Object Drawing.Size(420, 24)
+$form.Controls.Add($email)
 
-$divider = New-Object Windows.Forms.Label
-$divider.BorderStyle = 'Fixed3D'
-$divider.Location = New-Object Drawing.Point(20, 288)
-$divider.Size = New-Object Drawing.Size(635, 2)
-$form.Controls.Add($divider)
+$passwordLabel = New-Object Windows.Forms.Label
+$passwordLabel.Location = New-Object Drawing.Point(24, 145)
+$passwordLabel.Size = New-Object Drawing.Size(120, 24)
+$passwordLabel.Text = 'Password'
+$form.Controls.Add($passwordLabel)
+$password = New-Object Windows.Forms.TextBox
+$password.Location = New-Object Drawing.Point(150, 142)
+$password.Size = New-Object Drawing.Size(300, 24)
+$password.UseSystemPasswordChar = $true
+$form.Controls.Add($password)
 
-$configureSmtp = New-Object Windows.Forms.CheckBox
-$configureSmtp.Location = New-Object Drawing.Point(20, 296)
-$configureSmtp.Size = New-Object Drawing.Size(635, 24)
-$configureSmtp.Text = 'Also configure SMTP for exact reviewed sending'
-$configureSmtp.Checked = $false
-$form.Controls.Add($configureSmtp)
-
-Add-Label $form 'SMTP username' 20 328
-$smtpUsername = Add-TextBox $form 170 325 485
-Add-Label $form 'SMTP server' 20 364
-$smtpHost = Add-TextBox $form 170 361 365
-Add-Label $form 'Port' 545 364 35
-$smtpPort = Add-TextBox $form 585 361 70
-$smtpPort.Text = '465'
-Add-Label $form 'SMTP security' 20 400
-$smtpSecurity = New-Object Windows.Forms.ComboBox
-$smtpSecurity.Location = New-Object Drawing.Point(170, 397)
-$smtpSecurity.Size = New-Object Drawing.Size(220, 24)
-$smtpSecurity.DropDownStyle = 'DropDownList'
-[void]$smtpSecurity.Items.Add('Implicit TLS')
-[void]$smtpSecurity.Items.Add('Mandatory STARTTLS')
-$smtpSecurity.SelectedIndex = 0
-$form.Controls.Add($smtpSecurity)
-
-$samePassword = New-Object Windows.Forms.CheckBox
-$samePassword.Location = New-Object Drawing.Point(170, 434)
-$samePassword.Size = New-Object Drawing.Size(330, 24)
-$samePassword.Text = 'SMTP uses the same password/app-password'
-$samePassword.Checked = $true
-$samePassword.Enabled = $false
-$form.Controls.Add($samePassword)
-Add-Label $form 'SMTP password' 20 470
-$smtpPassword = Add-TextBox $form 170 467 350
-$smtpPassword.UseSystemPasswordChar = $true
-$smtpPassword.Enabled = $false
-$showSmtpPassword = New-Object Windows.Forms.CheckBox
-$showSmtpPassword.Location = New-Object Drawing.Point(530, 467)
-$showSmtpPassword.Size = New-Object Drawing.Size(125, 24)
-$showSmtpPassword.Text = 'Show password'
-$showSmtpPassword.Checked = $false
-$showSmtpPassword.Enabled = $false
-$form.Controls.Add($showSmtpPassword)
-Add-Label $form 'Confirm SMTP' 20 506
-$smtpConfirm = Add-TextBox $form 170 503 485
-$smtpConfirm.UseSystemPasswordChar = $true
-$smtpConfirm.Enabled = $false
-$showSmtpPassword.Add_CheckedChanged({
-    $masked = -not $showSmtpPassword.Checked
-    $smtpPassword.UseSystemPasswordChar = $masked
-    $smtpConfirm.UseSystemPasswordChar = $masked
-})
-$samePassword.Add_CheckedChanged({
-    if ($samePassword.Checked) { $showSmtpPassword.Checked = $false }
-    $smtpPassword.Enabled = $configureSmtp.Checked -and -not $samePassword.Checked
-    $smtpConfirm.Enabled = $configureSmtp.Checked -and -not $samePassword.Checked
-    $showSmtpPassword.Enabled = $configureSmtp.Checked -and -not $samePassword.Checked
-})
-$smtpFields = @($smtpUsername, $smtpHost, $smtpPort, $smtpSecurity)
-foreach ($control in $smtpFields) { $control.Enabled = $false }
-$configureSmtp.Add_CheckedChanged({
-    foreach ($control in $smtpFields) { $control.Enabled = $configureSmtp.Checked }
-    $samePassword.Enabled = $configureSmtp.Checked
-    if (-not $configureSmtp.Checked -or $samePassword.Checked) { $showSmtpPassword.Checked = $false }
-    $smtpPassword.Enabled = $configureSmtp.Checked -and -not $samePassword.Checked
-    $smtpConfirm.Enabled = $configureSmtp.Checked -and -not $samePassword.Checked
-    $showSmtpPassword.Enabled = $configureSmtp.Checked -and -not $samePassword.Checked
-})
-
-Add-Label $form 'Trusted auth server' 20 542
-$trustedAuthserv = Add-TextBox $form 170 539 485
-
-$enableOperator = New-Object Windows.Forms.CheckBox
-$enableOperator.Location = New-Object Drawing.Point(20, 577)
-$enableOperator.Size = New-Object Drawing.Size(635, 38)
-$enableOperator.Text = 'Enable reviewed mailbox actions when MOVE, Drafts and Trash are safely available'
-$enableOperator.Checked = $false
-$form.Controls.Add($enableOperator)
+$showPassword = New-Object Windows.Forms.CheckBox
+$showPassword.Location = New-Object Drawing.Point(460, 142)
+$showPassword.Size = New-Object Drawing.Size(110, 24)
+$showPassword.Text = 'Show'
+$showPassword.Checked = $false
+$showPassword.Add_CheckedChanged({ $password.UseSystemPasswordChar = -not $showPassword.Checked })
+$form.Controls.Add($showPassword)
 
 $status = New-Object Windows.Forms.Label
-$status.Location = New-Object Drawing.Point(20, 620)
-$status.Size = New-Object Drawing.Size(635, 52)
-$status.ForeColor = [Drawing.Color]::DarkRed
+$status.Location = New-Object Drawing.Point(24, 190)
+$status.Size = New-Object Drawing.Size(546, 45)
+$status.ForeColor = [Drawing.Color]::DarkBlue
+$status.Text = 'Codex will configure receiving, reviewed actions, and sending when the provider supports them.'
 $form.Controls.Add($status)
 
-$storeButton = New-Object Windows.Forms.Button
-$storeButton.Location = New-Object Drawing.Point(440, 678)
-$storeButton.Size = New-Object Drawing.Size(130, 32)
-$storeButton.Text = 'Store && verify'
-$form.Controls.Add($storeButton)
-$form.AcceptButton = $storeButton
+$connectButton = New-Object Windows.Forms.Button
+$connectButton.Location = New-Object Drawing.Point(372, 250)
+$connectButton.Size = New-Object Drawing.Size(110, 32)
+$connectButton.Text = 'Connect'
+$form.Controls.Add($connectButton)
+$form.AcceptButton = $connectButton
 
 $cancelButton = New-Object Windows.Forms.Button
-$cancelButton.Location = New-Object Drawing.Point(580, 678)
-$cancelButton.Size = New-Object Drawing.Size(75, 32)
+$cancelButton.Location = New-Object Drawing.Point(492, 250)
+$cancelButton.Size = New-Object Drawing.Size(78, 32)
 $cancelButton.Text = 'Cancel'
 $cancelButton.DialogResult = [Windows.Forms.DialogResult]::Cancel
 $form.Controls.Add($cancelButton)
 $form.CancelButton = $cancelButton
 
-$email.Add_Leave({
-    if ([string]::IsNullOrWhiteSpace($imapUsername.Text)) { $imapUsername.Text = $email.Text }
-    if ([string]::IsNullOrWhiteSpace($smtpUsername.Text)) { $smtpUsername.Text = $email.Text }
-})
-
-$storeButton.Add_Click({
-    $storeButton.Enabled = $false
+$connectButton.Add_Click({
+    $connectButton.Enabled = $false
     $status.ForeColor = [Drawing.Color]::DarkBlue
-    $status.Text = 'Validating locally…'
+    $status.Text = 'Finding and verifying secure mail settings...'
     try {
         $address = $email.Text.Trim()
-        if ($address -notmatch '^[^\s@]+@[^\s@]+$') { throw 'Enter a valid single email address.' }
-        if ([string]::IsNullOrWhiteSpace($imapUsername.Text)) { throw 'The IMAP username is required.' }
-        if ([string]::IsNullOrEmpty($imapPassword.Text) -or $imapPassword.Text -cne $imapConfirm.Text) { throw 'The IMAP password entries are empty or do not match.' }
-        $smtpSecret = $null
-        if ($configureSmtp.Checked) {
-            if ([string]::IsNullOrWhiteSpace($smtpUsername.Text)) { throw 'The SMTP username is required when SMTP is enabled.' }
-            $smtpSecret = if ($samePassword.Checked) { $imapPassword.Text } else { $smtpPassword.Text }
-            $smtpSecretConfirmation = if ($samePassword.Checked) { $imapConfirm.Text } else { $smtpConfirm.Text }
-            if ([string]::IsNullOrEmpty($smtpSecret) -or $smtpSecret -cne $smtpSecretConfirmation) { throw 'The SMTP password entries are empty or do not match.' }
-        }
-
-        $values = @{
-            EmailAddress = $address
-            ImapUsername = $imapUsername.Text.Trim()
-            ImapHost = Normalize-DnsHost $imapHost.Text
-            ImapPort = Read-Port $imapPort.Text 'IMAP port'
-            ImapSecurity = if ($imapSecurity.SelectedIndex -eq 0) { 'implicit_tls' } else { 'starttls' }
-            ConfigureSmtp = $configureSmtp.Checked
-            SmtpUsername = if ($configureSmtp.Checked) { $smtpUsername.Text.Trim() } else { '' }
-            SmtpHost = if ($configureSmtp.Checked) { Normalize-DnsHost $smtpHost.Text } else { '' }
-            SmtpPort = if ($configureSmtp.Checked) { Read-Port $smtpPort.Text 'SMTP port' } else { 0 }
-            SmtpSecurity = if ($smtpSecurity.SelectedIndex -eq 0) { 'implicit_tls' } else { 'starttls' }
-            TrustedAuthservIds = @($trustedAuthserv.Text.Split(',') | ForEach-Object { $_.Trim() } | Where-Object { $_ } | ForEach-Object { Normalize-DnsHost $_ })
-        }
-
-        [ImapPluginCredential]::WriteLocalMachine('imap-plugin/imap', $imapPassword.Text)
+        if ($address -notmatch '^[^\s@]+@[^\s@]+$') { throw 'Enter one valid email address.' }
+        if ([string]::IsNullOrEmpty($password.Text)) { throw 'Enter your password or provider-issued app password.' }
+        $result = Invoke-AutoConfigure $address $password.Text
+        [ImapPluginCredential]::WriteLocalMachine('imap-plugin/imap', $password.Text)
         [void][ImapPluginCredential]::Metadata('imap-plugin/imap')
-        if ($configureSmtp.Checked) {
-            [ImapPluginCredential]::WriteLocalMachine('imap-plugin/smtp', $smtpSecret)
+        if ([bool]$result.smtp_configured) {
+            [ImapPluginCredential]::WriteLocalMachine('imap-plugin/smtp', $password.Text)
             [void][ImapPluginCredential]::Metadata('imap-plugin/smtp')
         }
-        [void](Write-Config $values $false)
-
-        $pluginRoot = Split-Path -Parent $PSScriptRoot
-        $python = Join-Path $pluginRoot 'runtime\python\python.exe'
-        if (-not (Test-Path -LiteralPath $python -PathType Leaf)) { throw 'The pinned local runtime is missing.' }
-        $previousPythonPath = $env:PYTHONPATH
-        $previousNoBytecode = $env:PYTHONDONTWRITEBYTECODE
-        $previousProfile = $env:IMAP_PLUGIN_PROFILE
-        try {
-            $env:PYTHONPATH = Join-Path $pluginRoot 'src'
-            $env:PYTHONDONTWRITEBYTECODE = '1'
-            $env:IMAP_PLUGIN_PROFILE = 'read'
-            $doctorText = (& $python -m imap_plugin.cli doctor 2>&1 | Out-String)
-            $doctorExit = $LASTEXITCODE
-        } finally {
-            $env:PYTHONPATH = $previousPythonPath
-            $env:PYTHONDONTWRITEBYTECODE = $previousNoBytecode
-            $env:IMAP_PLUGIN_PROFILE = $previousProfile
-        }
-        if ($doctorExit -ne 0) { throw 'Connection verification failed. Credentials remain local and operator mode remains disabled.' }
-        $doctor = $doctorText | ConvertFrom-Json
-        if ($enableOperator.Checked) {
-            if (-not $doctor.mailbox_actions_ready) { throw 'Reading works, but safe MOVE, Drafts or Trash support is missing. Mailbox actions remain disabled.' }
-            [void](Write-Config $values $true)
-        }
-        $status.ForeColor = [Drawing.Color]::DarkGreen
-        $status.Text = if ($enableOperator.Checked) { 'Reviewed mailbox actions are enabled. Sending requires configured SMTP and always receives a separate exact review.' } else { 'Verified in safe read mode. Reviewed actions can be enabled later through setup.' }
+        Write-Config $result
+        $capabilities = @('reading')
+        if ([bool]$result.mailbox_actions_ready) { $capabilities += 'reviewed mailbox actions' }
+        if ([bool]$result.send_ready) { $capabilities += 'reviewed sending' }
+        [Windows.Forms.MessageBox]::Show(
+            ('Connected. Ready for ' + ($capabilities -join ', ') + '.'),
+            'IMAP Plugin',
+            [Windows.Forms.MessageBoxButtons]::OK,
+            [Windows.Forms.MessageBoxIcon]::Information
+        ) | Out-Null
         $form.DialogResult = [Windows.Forms.DialogResult]::OK
     } catch {
         $status.ForeColor = [Drawing.Color]::DarkRed
         $status.Text = $_.Exception.Message
     } finally {
-        $imapPassword.Clear()
-        $imapConfirm.Clear()
-        $smtpPassword.Clear()
-        $smtpConfirm.Clear()
-        $showImapPassword.Checked = $false
-        $showSmtpPassword.Checked = $false
-        $storeButton.Enabled = $true
+        $password.Clear()
+        $showPassword.Checked = $false
+        $connectButton.Enabled = $true
     }
 })
 
 $form.Add_Shown({ $email.Focus() })
 $result = $form.ShowDialog()
-$showImapPassword.Checked = $false
-$showSmtpPassword.Checked = $false
-$imapPassword.Clear()
-$imapConfirm.Clear()
-$smtpPassword.Clear()
-$smtpConfirm.Clear()
+$showPassword.Checked = $false
+$password.Clear()
 if ($result -ne [Windows.Forms.DialogResult]::OK) {
     throw 'Mailbox setup was cancelled or did not complete.'
 }

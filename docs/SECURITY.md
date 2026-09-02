@@ -2,13 +2,13 @@
 
 ## Trust boundaries
 
-The plugin runs locally as a STDIO MCP server. It has no hosted mail backend, HTTP listener, telemetry, analytics, remote UI assets, or cloud credential store. IMAP and optional SMTP connect only to validated DNS hostnames with the operating-system trust store and hostname verification. Supported transport modes are implicit TLS and mandatory STARTTLS; plaintext fallback is unavailable.
+The plugin runs locally as a STDIO MCP server. It has no hosted mail backend, HTTP listener, telemetry, analytics, remote UI assets, cloud credential store, scheduled task, launch agent, or background mailbox poll. IMAP and optional SMTP connect only to validated DNS hostnames with the operating-system trust store and hostname verification. Supported transport modes are implicit TLS and mandatory STARTTLS; plaintext fallback is unavailable.
 
 Every subject, body, address, header, URL, attachment name, and instruction from mail is untrusted data. Mail content cannot authorize an action or change the security policy.
 
 ## Credentials and configuration
 
-Passwords or app passwords are entered only in the native masked setup form and are stored as separate Windows Credential Manager or macOS Keychain items. They are never accepted through chat, command arguments, environment variables, logs, or configuration files. The TOML configuration contains only nonsecret connection settings and bounded feature choices.
+The native setup form asks only for an email address and one masked password or app password. Provider-owned standard autoconfiguration endpoints receive the email address, while Mozilla's ISP database receives only its domain. Those discovery endpoints never receive the password. The password is used in memory only to authenticate directly to candidate IMAP and SMTP servers over verified TLS, then stored in Windows Credential Manager or macOS Keychain after IMAP succeeds. It is never accepted through chat, command arguments, environment variables, logs, or configuration files. The TOML configuration contains only nonsecret connection settings and bounded feature choices.
 
 ## Action authorization
 

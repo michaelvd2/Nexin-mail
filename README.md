@@ -18,9 +18,9 @@ Nothing happens automatically just because the plugin is installed or opened. Re
 
 ## Private by design
 
-Your mailbox password is entered in a masked setup window and saved by Windows Credential Manager or macOS Keychain. It is not placed in the plugin files, configuration files, logs, or installation package.
+Setup asks only for your email address and password (or app password). The plugin finds secure provider settings and checks the connection for you. Your password is saved by Windows Credential Manager or macOS Keychain. It is not placed in plugin files, configuration files, logs, or the installation package.
 
-The plugin has no advertising, analytics, telemetry, hosted mail relay, or separate cloud account. Email content is only retrieved when you ask Codex to work with it.
+The plugin has no advertising, analytics, telemetry, hosted mail relay, or separate cloud account. Email content is only retrieved when you ask Codex to work with it, and there are no scheduled background mailbox checks.
 
 ## Install with Codex
 
@@ -32,7 +32,7 @@ You do not need to understand the source code or run technical commands yourself
 
    **Read `CODEX_INSTALL.md` and install this plugin.**
 
-4. Codex checks your computer, installs the right version, and opens a private setup window for your email details.
+4. Codex checks your computer, installs the right version, and opens a private setup window. Enter only your email address and password.
 5. When installation is complete, start a fresh Codex task and ask it to check your mail connection.
 
 Codex can repair common installation problems and verifies the connection without sending or changing email.
@@ -50,10 +50,9 @@ The dashboard uses the same local mailbox connection and protected login. You en
 - Windows 10/11 or macOS 13 or newer.
 - Codex desktop or Codex CLI.
 - An email provider that supports IMAP with TLS.
-- Your IMAP server details and a password or provider-issued app password.
-- SMTP details only if you also want to send email.
+- Your email address and password or provider-issued app password.
 
-Providers that require OAuth and do not allow an app password are not supported in version 0.1.0.
+Secure IMAP and optional SMTP settings are detected automatically. Providers that require OAuth and do not allow an app password are not supported in version 0.1.1.
 
 ## Current release
 

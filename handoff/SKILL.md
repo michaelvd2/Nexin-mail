@@ -11,7 +11,7 @@ Work only from the extracted package root. Run `verify.ps1` first and stop on an
 
 Run `install.ps1`. It copies the verified package under the current user's Local AppData, registers the bundled local marketplace, and installs `imap-plugin@imap-plugin-handoff`. It then opens the native masked setup form when a working generic connector configuration is not already present.
 
-Pause while the user enters their own provider's server names, ports, usernames, transport modes, and passwords in the native form. The form supports implicit TLS and mandatory STARTTLS. Plaintext transport and IP-literal server targets are rejected. Passwords stay in Windows Credential Manager.
+Pause while the user enters only their email address and one password or app password in the native form. The plugin discovers provider settings and verifies implicit TLS or mandatory STARTTLS automatically. If discovery fails, use only the reported domain and official provider documentation, then reopen the same form with nonsecret hints. Plaintext transport and IP-literal server targets are rejected. Passwords stay in Windows Credential Manager.
 
 The post-install doctor is read-only. Require verified IMAP connectivity and a local-machine credential record. SMTP is optional. Never send a test message, move mail, save a draft, download an attachment, or otherwise mutate the mailbox as an installation test.
 

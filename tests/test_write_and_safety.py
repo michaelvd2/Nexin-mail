@@ -53,9 +53,21 @@ def test_no_hidden_timer_watcher_or_service_path():
     assert not any(value in production for value in forbidden)
 
 
-def test_cli_scheduled_path_forces_read_profile_without_being_exposed_as_a_plugin_tool():
+def test_plugin_has_no_background_or_scheduled_mail_check():
     root = Path(__file__).parents[1]
     cli = (root / "src" / "imap_plugin" / "cli.py").read_text(encoding="utf-8")
     server = (root / "src" / "imap_plugin" / "server.py").read_text(encoding="utf-8")
-    assert 'os.environ["IMAP_PLUGIN_PROFILE"] = "read"' in cli
-    assert "scheduled_check" not in server
+    scripts = "\n".join(
+        path.read_text(encoding="utf-8") for path in (root / "scripts").glob("*")
+        if path.is_file()
+    )
+    for forbidden in (
+        "scheduled_check",
+        "IMAP Plugin Read Check",
+        "Register-ScheduledTask",
+        "LaunchAgents",
+    ):
+        assert forbidden not in cli
+        assert forbidden not in server
+        assert forbidden not in scripts
+    assert 'sys.argv[1:] not in ([], ["doctor"])' in cli

@@ -9,7 +9,9 @@ Codex should diagnose installation failures from their exact output and make the
 - Repair a generated launcher path when the verified plugin was copied to a different dedicated installation directory.
 - Re-register the plugin when the marketplace already points to the same verified distribution.
 - Preserve and reuse an existing healthy generic configuration; rerun the masked setup when the user explicitly wants to change it.
+- If automatic provider discovery fails, use only the reported domain to read the provider's official documentation and pass complete nonsecret hints to `scripts/configure.py`. Keep the visible form limited to email address and password. Never search with the full address or accept unofficial server settings.
 - Start a new Codex task after installation so the plugin cache and tool list are refreshed.
+- Remove any legacy scheduled mail-check task or launch agent bearing this plugin's name; the public plugin does not need or create one.
 
 ## Stop conditions
 

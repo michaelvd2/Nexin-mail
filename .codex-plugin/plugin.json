@@ -1,7 +1,7 @@
 {
   "name": "imap-plugin",
-  "version": "0.1.0",
-  "description": "Provider-independent local IMAP/SMTP operator for Codex on Windows and macOS with bounded reads and native review for every change.",
+  "version": "0.1.1",
+  "description": "Provider-independent local IMAP/SMTP operator for Codex on Windows and macOS with automatic two-field setup and native review for every change.",
   "author": {
     "name": "IMAP Plugin contributors"
   },
@@ -17,7 +17,7 @@
   "interface": {
     "displayName": "IMAP Plugin",
     "shortDescription": "Provider-independent local mail operator",
-    "longDescription": "Connect one standards-based IMAP mailbox locally to Codex on Windows or macOS. Read and search within strict bounds, inspect suspicious or advertising mail, and perform exact single or bulk actions only after separate native local review.",
+    "longDescription": "Connect one standards-based mailbox locally with only an email address and password. Read and search within strict bounds, inspect suspicious or advertising mail, and perform exact single or bulk actions only after separate native local review.",
     "developerName": "IMAP Plugin contributors",
     "category": "Productivity",
     "capabilities": [
