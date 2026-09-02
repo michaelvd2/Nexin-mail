@@ -1,0 +1,34 @@
+{
+  "name": "imap-plugin",
+  "version": "0.1.0",
+  "description": "Provider-independent local IMAP/SMTP operator for Codex on Windows and macOS with bounded reads and native review for every change.",
+  "author": {
+    "name": "IMAP Plugin contributors"
+  },
+  "license": "MIT",
+  "keywords": [
+    "email",
+    "imap",
+    "smtp",
+    "privacy"
+  ],
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "IMAP Plugin",
+    "shortDescription": "Provider-independent local mail operator",
+    "longDescription": "Connect one standards-based IMAP mailbox locally to Codex on Windows or macOS. Read and search within strict bounds, inspect suspicious or advertising mail, and perform exact single or bulk actions only after separate native local review.",
+    "developerName": "IMAP Plugin contributors",
+    "category": "Productivity",
+    "capabilities": [
+      "Interactive",
+      "Write"
+    ],
+    "defaultPrompt": [
+      "Check the status of my IMAP connection.",
+      "Search recent mail in one folder.",
+      "Inspect recent advertising mail and show the exact unsubscribe options first."
+    ],
+    "brandColor": "#2563EB"
+  }
+}

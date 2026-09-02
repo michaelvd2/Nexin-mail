@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+build/
+dist/
+receipts/
+runtime/
+*.egg-info/
+.coverage
+htmlcov/
+*.log
+*.tmp
+config.toml
+*.zip
