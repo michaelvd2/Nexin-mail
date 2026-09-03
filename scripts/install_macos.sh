@@ -87,10 +87,21 @@ from pathlib import Path
 staging = Path(os.environ["STAGING_ROOT"]).resolve()
 backend = Path(os.environ["BACKEND_ROOT"]).resolve()
 files = []
-for path in sorted(item for item in backend.rglob("*") if item.is_file()):
+for path in sorted(item for item in backend.rglob("*") if item.is_file() or item.is_symlink()):
     relative = path.relative_to(staging).as_posix()
-    digest = hashlib.sha256(path.read_bytes()).hexdigest().upper()
-    files.append({"path": relative, "bytes": path.stat().st_size, "sha256": digest})
+    if path.is_symlink():
+        target = os.readlink(path)
+        encoded = target.encode("utf-8", "surrogateescape")
+        files.append({
+            "path": relative,
+            "type": "symlink",
+            "target": target,
+            "bytes": len(encoded),
+            "sha256": hashlib.sha256(encoded).hexdigest().upper(),
+        })
+    else:
+        digest = hashlib.sha256(path.read_bytes()).hexdigest().upper()
+        files.append({"path": relative, "type": "file", "bytes": path.stat().st_size, "sha256": digest})
 manifest = {
     "schema": 1,
     "product": "imap-plugin-installed-backend",
