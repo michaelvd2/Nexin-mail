@@ -49,7 +49,7 @@ done
 cp -R "$source_root/docs" "$payload/"
 cp "$source_root/handoff/marketplace.json" "$staging/.agents/plugins/marketplace.json"
 cat > "$staging/release.json" <<'JSON'
-{"product":"imap-plugin-macos-source-installer","version":"0.1.3","platform":"macos","marketplace":"imap-plugin-handoff"}
+{"product":"imap-plugin-macos-source-installer","version":"0.1.4","platform":"macos","marketplace":"imap-plugin-handoff"}
 JSON
 
 python3 -m venv "$payload/runtime/venv"
@@ -105,7 +105,7 @@ for path in sorted(item for item in backend.rglob("*") if item.is_file() or item
 manifest = {
     "schema": 1,
     "product": "imap-plugin-installed-backend",
-    "version": "0.1.3",
+    "version": "0.1.4",
     "platform": "macos",
     "root": "plugins/imap-plugin",
     "files": files,

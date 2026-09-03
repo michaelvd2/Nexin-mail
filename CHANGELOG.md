@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.4 - Secure build tooling
+
+- Updated the pinned Python build tool to a version that fixes the macOS Unicode-normalization archive issue.
+
 ## 0.1.3 - Installed-backend integrity
 
 - Records a SHA-256 manifest for every installed macOS backend file before the distribution becomes active.
