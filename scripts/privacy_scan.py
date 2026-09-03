@@ -30,7 +30,8 @@ TEXT_SUFFIXES = {".cmd", ".json", ".lock", ".md", ".ps1", ".py", ".sh", ".toml",
 
 def candidate_files(root: Path):
     for path in root.rglob("*"):
-        if not path.is_file() or any(part in SKIP_PARTS for part in path.parts):
+        relative_path = path.relative_to(root)
+        if not path.is_file() or any(part in SKIP_PARTS for part in relative_path.parts):
             continue
         if path.suffix.lower() in TEXT_SUFFIXES or path.name in {"LICENSE", ".gitignore"}:
             yield path

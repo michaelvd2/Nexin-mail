@@ -55,6 +55,8 @@ $scanPython = (Get-Command python.exe -ErrorAction Stop).Source
 $previousNoBytecode = $env:PYTHONDONTWRITEBYTECODE
 try {
     $env:PYTHONDONTWRITEBYTECODE = '1'
+    & $scanPython (Join-Path $pluginRoot 'scripts\privacy_scan.py') $stage
+    if ($LASTEXITCODE -ne 0) { throw 'Staged package privacy check failed.' }
     & $scanPython (Join-Path $pluginRoot 'scripts\package_owner_path_scan.py') $stage
     if ($LASTEXITCODE -ne 0) { throw 'Package contains a build-machine user-profile path.' }
 } finally {

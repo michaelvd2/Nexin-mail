@@ -8,6 +8,7 @@ from imap_plugin.privacy import scan_for_secret, trace_schema_is_safe
 from imap_plugin.trace import SafeTrace
 
 from scripts.package_owner_path_scan import contains_owner_path
+from scripts.privacy_scan import candidate_files
 
 
 def test_encoded_header():
@@ -135,3 +136,11 @@ def test_package_owner_path_scan_detects_utf8_and_utf16(tmp_path):
     needles = (home.casefold().encode("utf-8"), home.casefold().encode("utf-16-le"))
     assert contains_owner_path(utf8, needles)
     assert contains_owner_path(utf16, needles)
+
+
+def test_privacy_scan_does_not_skip_a_package_because_its_parent_is_dist(tmp_path):
+    stage = tmp_path / "dist" / "package"
+    stage.mkdir(parents=True)
+    readme = stage / "README.md"
+    readme.write_text("customer safe", encoding="utf-8")
+    assert list(candidate_files(stage)) == [readme]
