@@ -8,6 +8,7 @@ from imap_plugin.privacy import scan_for_secret, trace_schema_is_safe
 from imap_plugin.trace import SafeTrace
 
 from scripts.package_owner_path_scan import contains_owner_path
+from scripts.git_history_privacy_scan import _scan_bytes as scan_history_bytes, identity_is_allowed
 from scripts.privacy_scan import candidate_files
 
 
@@ -144,3 +145,14 @@ def test_privacy_scan_does_not_skip_a_package_because_its_parent_is_dist(tmp_pat
     readme = stage / "README.md"
     readme.write_text("customer safe", encoding="utf-8")
     assert list(candidate_files(stage)) == [readme]
+
+
+def test_history_scan_allows_only_known_github_automation_addresses():
+    assert scan_history_bytes(b"Signed-off-by: dependabot[bot] <support@github.com>", "commit") == []
+    assert scan_history_bytes(b"author@" + b"company.example.com", "commit") == [
+        "non-example email domain in commit"
+    ]
+    assert identity_is_allowed("dependabot[bot]", "49699333+dependabot[bot]@users.noreply.github.com")
+    assert identity_is_allowed("GitHub", "noreply@github.com")
+    assert not identity_is_allowed("Example Person", "noreply@github.com")
+    assert not identity_is_allowed("GitHub", "person@" + "company.example.com")

@@ -24,6 +24,11 @@ ALLOWED_EMAIL_DOMAINS = {
     "example.test",
     "users.noreply.github.com",
 }
+ALLOWED_EMAIL_ADDRESSES = {
+    "49699333+dependabot[bot]@users.noreply.github.com",
+    "noreply@github.com",
+    "support@github.com",
+}
 SKIP_PARTS = {".git", ".pytest_cache", ".venv", "__pycache__", "dist", "receipts", "runtime"}
 TEXT_SUFFIXES = {".cmd", ".json", ".lock", ".md", ".ps1", ".py", ".sh", ".toml", ".txt", ".yml", ".yaml"}
 
@@ -56,6 +61,8 @@ def main() -> int:
             if pattern.search(text):
                 findings.append(f"possible secret: {path.relative_to(root).as_posix()}")
         for match in EMAIL_PATTERN.finditer(text):
+            if match.group(0).casefold() in ALLOWED_EMAIL_ADDRESSES:
+                continue
             domain = match.group(1).casefold()
             if domain not in ALLOWED_EMAIL_DOMAINS and not domain.endswith((".test", ".example", ".invalid")):
                 findings.append(f"non-example email domain '{domain}': {path.relative_to(root).as_posix()}")

@@ -31,7 +31,21 @@ ALLOWED_EMAIL_DOMAINS = {
     b"example.test",
     b"users.noreply.github.com",
 }
-ALLOWED_AUTHOR_NAMES = {"IMAP Plugin contributors"}
+ALLOWED_EMAIL_ADDRESSES = {
+    b"49699333+dependabot[bot]@users.noreply.github.com",
+    b"noreply@github.com",
+    b"support@github.com",
+}
+ALLOWED_AUTHOR_NAMES = {"IMAP Plugin contributors", "dependabot[bot]", "GitHub"}
+
+
+def identity_is_allowed(name: str, email: str) -> bool:
+    address = email.casefold().encode("utf-8")
+    domain = email.rpartition("@")[2].casefold()
+    return name in ALLOWED_AUTHOR_NAMES and (
+        address in ALLOWED_EMAIL_ADDRESSES
+        or domain in {item.decode("ascii") for item in ALLOWED_EMAIL_DOMAINS}
+    )
 
 
 def _git(root: Path, *args: str, text: bool = False) -> bytes | str:
@@ -57,6 +71,8 @@ def _scan_bytes(data: bytes, location: str) -> list[str]:
     if any(pattern.search(data) for pattern in SECRET_PATTERNS):
         findings.append(f"possible secret in {location}")
     for match in EMAIL_PATTERN.finditer(data):
+        if match.group(0).lower() in ALLOWED_EMAIL_ADDRESSES:
+            continue
         domain = match.group(1).lower()
         if domain not in ALLOWED_EMAIL_DOMAINS and not domain.endswith(
             (b".test", b".example", b".invalid")
@@ -101,10 +117,10 @@ def main() -> int:
         author_name, author_email, committer_name, committer_email = parts
         if author_name not in ALLOWED_AUTHOR_NAMES or committer_name not in ALLOWED_AUTHOR_NAMES:
             findings.append("non-generic Git author or committer name")
-        for value in (author_email, committer_email):
-            domain = value.rpartition("@")[2].casefold()
-            if domain not in {item.decode("ascii") for item in ALLOWED_EMAIL_DOMAINS}:
-                findings.append("non-generic Git author or committer email")
+        if not identity_is_allowed(author_name, author_email) or not identity_is_allowed(
+            committer_name, committer_email
+        ):
+            findings.append("non-generic Git author or committer email")
 
     unique = sorted(set(findings))
     if unique:
