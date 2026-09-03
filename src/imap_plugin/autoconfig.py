@@ -97,7 +97,7 @@ class _HttpsOnlyRedirectHandler(urllib.request.HTTPRedirectHandler):
 def _fetch_xml(url: str) -> bytes:
     request = urllib.request.Request(
         url,
-        headers={"User-Agent": "IMAP-Plugin-Autoconfig/0.1.2"},
+        headers={"User-Agent": "IMAP-Plugin-Autoconfig/0.1.3"},
     )
     opener = urllib.request.build_opener(
         urllib.request.HTTPSHandler(context=ssl.create_default_context()),

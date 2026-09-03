@@ -42,6 +42,15 @@ def test_customer_installers_require_hashes_before_installing_code():
     assert windows.count("--require-hashes") >= 2
 
 
+def test_macos_installer_records_backend_integrity_before_activation():
+    root = Path(__file__).parents[1]
+    macos = (root / "scripts" / "install_macos.sh").read_text(encoding="utf-8")
+    assert '"product": "imap-plugin-installed-backend"' in macos
+    assert '"root": "plugins/imap-plugin"' in macos
+    assert 'backend-integrity.json' in macos
+    assert macos.index('backend-integrity.json') < macos.index('mv -- "$staging" "$distribution"')
+
+
 @pytest.mark.skipif(platform.system() != "Darwin", reason="requires macOS")
 def test_macos_state_uses_application_support():
     path = state_root()

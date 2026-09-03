@@ -49,7 +49,7 @@ done
 cp -R "$source_root/docs" "$payload/"
 cp "$source_root/handoff/marketplace.json" "$staging/.agents/plugins/marketplace.json"
 cat > "$staging/release.json" <<'JSON'
-{"product":"imap-plugin-macos-source-installer","version":"0.1.2","platform":"macos","marketplace":"imap-plugin-handoff"}
+{"product":"imap-plugin-macos-source-installer","version":"0.1.3","platform":"macos","marketplace":"imap-plugin-handoff"}
 JSON
 
 python3 -m venv "$payload/runtime/venv"
@@ -76,6 +76,32 @@ value = {
     }
 }
 (root / ".mcp.json").write_text(json.dumps(value, indent=2) + "\n", encoding="utf-8")
+PY
+
+STAGING_ROOT="$staging" BACKEND_ROOT="$payload" python3 - <<'PY'
+import hashlib
+import json
+import os
+from pathlib import Path
+
+staging = Path(os.environ["STAGING_ROOT"]).resolve()
+backend = Path(os.environ["BACKEND_ROOT"]).resolve()
+files = []
+for path in sorted(item for item in backend.rglob("*") if item.is_file()):
+    relative = path.relative_to(staging).as_posix()
+    digest = hashlib.sha256(path.read_bytes()).hexdigest().upper()
+    files.append({"path": relative, "bytes": path.stat().st_size, "sha256": digest})
+manifest = {
+    "schema": 1,
+    "product": "imap-plugin-installed-backend",
+    "version": "0.1.3",
+    "platform": "macos",
+    "root": "plugins/imap-plugin",
+    "files": files,
+}
+(staging / "backend-integrity.json").write_text(
+    json.dumps(manifest, indent=2) + "\n", encoding="utf-8"
+)
 PY
 
 if [ -d "$distribution" ]; then

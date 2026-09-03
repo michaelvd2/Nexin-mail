@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.3 - Installed-backend integrity
+
+- Records a SHA-256 manifest for every installed macOS backend file before the distribution becomes active.
+- Lets separately installed local UI plugins verify the Mac backend before launching any code from it.
+- Keeps the existing two-field setup and operating-system credential identity unchanged.
+
 ## 0.1.2 - Public release hardening
 
 - Rejects attachment downloads when Windows Mark of the Web or macOS quarantine marking cannot be applied, and removes the incomplete file.
