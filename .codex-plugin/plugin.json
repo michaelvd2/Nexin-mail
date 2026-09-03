@@ -1,6 +1,6 @@
 {
   "name": "imap-plugin",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Provider-independent local IMAP/SMTP operator for Codex on Windows and macOS with automatic two-field setup and native review for every change.",
   "author": {
     "name": "IMAP Plugin contributors"

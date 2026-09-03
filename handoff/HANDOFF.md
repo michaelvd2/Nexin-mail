@@ -24,7 +24,7 @@ Passwords or app passwords must never be placed in chat, shell commands, environ
 - Username/password or app-password authentication.
 - Optional SMTP using implicit TLS or mandatory STARTTLS.
 
-OAuth-only authentication is not supported in version 0.1.1. Provider-specific mailbox capabilities determine whether Trash, Junk, drafts, restore, and sending are available. The plugin creates no scheduled background mailbox check.
+OAuth-only authentication is not supported in this beta. Provider-specific mailbox capabilities determine whether Trash, Junk, drafts, restore, and sending are available. The plugin creates no scheduled background mailbox check.
 
 ## Rollback
 

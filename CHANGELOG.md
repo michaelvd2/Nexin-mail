@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.2 - Public release hardening
+
+- Rejects attachment downloads when Windows Mark of the Web or macOS quarantine marking cannot be applied, and removes the incomplete file.
+- Verifies all Python runtime and test dependencies against reviewed SHA-256 hashes before installation.
+- Pins CI actions to immutable revisions and checks the full Git history for personal data and secrets.
+- Removes generated launchers that embed a build-machine profile path and blocks releases containing any builder home path.
+- Keeps the customer setup at two fields: email address and one masked password or app password.
+
 ## 0.1.1 - Simple automatic setup
 
 - Replaced technical Windows and macOS setup fields with just email address and one masked password or app password.

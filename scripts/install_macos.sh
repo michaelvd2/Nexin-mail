@@ -49,11 +49,11 @@ done
 cp -R "$source_root/docs" "$payload/"
 cp "$source_root/handoff/marketplace.json" "$staging/.agents/plugins/marketplace.json"
 cat > "$staging/release.json" <<'JSON'
-{"product":"imap-plugin-macos-source-installer","version":"0.1.1","platform":"macos","marketplace":"imap-plugin-handoff"}
+{"product":"imap-plugin-macos-source-installer","version":"0.1.2","platform":"macos","marketplace":"imap-plugin-handoff"}
 JSON
 
 python3 -m venv "$payload/runtime/venv"
-"$payload/runtime/venv/bin/python" -m pip install --disable-pip-version-check --requirement "$payload/requirements-runtime.lock"
+"$payload/runtime/venv/bin/python" -m pip install --disable-pip-version-check --only-binary=:all: --require-hashes --requirement "$payload/requirements-runtime.lock"
 
 PLUGIN_ROOT="$payload" "$payload/runtime/venv/bin/python" - <<'PY'
 import json

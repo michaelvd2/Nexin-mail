@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "imap-plugin"
-version = "0.1.1"
+version = "0.1.2"
 description = "Local-first provider-independent IMAP/SMTP connector for Codex on Windows and macOS"
 requires-python = ">=3.12,<3.13"
 license = "MIT"

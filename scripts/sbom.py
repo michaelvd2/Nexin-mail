@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -11,6 +12,25 @@ from packaging.requirements import Requirement
 
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = ROOT / "receipts" / "sbom.cdx.json"
+
+
+def locked_requirements(path: Path) -> list[Requirement]:
+    logical_lines: list[str] = []
+    current = ""
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        stripped = raw.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        current = f"{current} {stripped}".strip()
+        if current.endswith("\\"):
+            current = current[:-1].rstrip()
+            continue
+        requirement_text = re.split(r"\s+--hash=", current, maxsplit=1)[0].strip()
+        logical_lines.append(requirement_text)
+        current = ""
+    if current:
+        raise RuntimeError(f"unterminated requirement continuation in {path.name}")
+    return [Requirement(line) for line in logical_lines]
 
 
 def component(name: str, version: str, ecosystem: str) -> dict[str, object]:
@@ -24,13 +44,10 @@ def component(name: str, version: str, ecosystem: str) -> dict[str, object]:
 
 def main() -> None:
     components: list[dict[str, object]] = []
-    for line in (ROOT / "requirements-runtime.lock").read_text(encoding="utf-8").splitlines():
-        if "==" not in line or line.lstrip().startswith("#"):
-            continue
-        requirement = Requirement(line)
+    for requirement in locked_requirements(ROOT / "requirements-runtime.lock"):
         versions = [item.version for item in requirement.specifier if item.operator == "=="]
         if len(versions) != 1:
-            raise RuntimeError(f"dependency is not exactly pinned: {line}")
+            raise RuntimeError(f"dependency is not exactly pinned: {requirement}")
         item = component(requirement.name, versions[0], "pypi")
         if requirement.marker is not None:
             item["properties"] = [{"name": "environment-marker", "value": str(requirement.marker)}]

@@ -111,6 +111,35 @@ def _apply_macos_quarantine(path: Path) -> bool:
     return result.returncode == 0
 
 
+def _apply_required_platform_marker(path: Path) -> tuple[bool, bool, bool]:
+    """Return Mark-of-the-Web, quarantine, and whether a marker is required."""
+    if os.name == "nt":
+        try:
+            Path(str(path) + ":Zone.Identifier").write_text(
+                "[ZoneTransfer]\r\nZoneId=3\r\n",
+                encoding="ascii",
+            )
+        except OSError:
+            return False, False, True
+        return True, False, True
+    if platform.system() == "Darwin":
+        return False, _apply_macos_quarantine(path), True
+    return False, False, False
+
+
+def _discard_unmarked_download(path: Path) -> None:
+    try:
+        path.unlink(missing_ok=True)
+    except OSError as exc:
+        raise DownloadError(
+            "download blocked because the operating-system safety marker failed; "
+            "the incomplete file could not be removed"
+        ) from exc
+    raise DownloadError(
+        "download blocked because the operating-system safety marker could not be applied"
+    )
+
+
 def save_attachment(
     name: str,
     content: bytes,
@@ -137,19 +166,9 @@ def save_attachment(
         handle.write(content)
         handle.flush()
         os.fsync(handle.fileno())
-    motw_applied = False
-    quarantine_applied = False
-    if os.name == "nt":
-        try:
-            Path(str(candidate) + ":Zone.Identifier").write_text(
-                "[ZoneTransfer]\r\nZoneId=3\r\n",
-                encoding="ascii",
-            )
-            motw_applied = True
-        except OSError:
-            motw_applied = False
-    elif platform.system() == "Darwin":
-        quarantine_applied = _apply_macos_quarantine(candidate)
+    motw_applied, quarantine_applied, marker_required = _apply_required_platform_marker(candidate)
+    if marker_required and not (motw_applied or quarantine_applied):
+        _discard_unmarked_download(candidate)
     scan_status = scanner(candidate)
     return {
         "download_path": str(candidate),

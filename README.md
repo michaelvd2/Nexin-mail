@@ -52,7 +52,7 @@ The dashboard uses the same local mailbox connection and protected login. You en
 - An email provider that supports IMAP with TLS.
 - Your email address and password or provider-issued app password.
 
-Secure IMAP and optional SMTP settings are detected automatically. Providers that require OAuth and do not allow an app password are not supported in version 0.1.1.
+Secure IMAP and optional SMTP settings are detected automatically. Providers that require OAuth and do not allow an app password are not supported in this beta.
 
 ## Current release
 

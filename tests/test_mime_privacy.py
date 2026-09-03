@@ -7,6 +7,8 @@ from imap_plugin.mime import decode_value, decoded_body, decoded_text, html_to_t
 from imap_plugin.privacy import scan_for_secret, trace_schema_is_safe
 from imap_plugin.trace import SafeTrace
 
+from scripts.package_owner_path_scan import contains_owner_path
+
 
 def test_encoded_header():
     assert "café" in decode_value("=?utf-8?q?caf=C3=A9?=")
@@ -122,3 +124,14 @@ def test_trace_schema_clean(tmp_path):
     trace = SafeTrace("read", root=tmp_path)
     trace.event("health", time.monotonic(), "success")
     assert trace_schema_is_safe(trace.path)
+
+
+def test_package_owner_path_scan_detects_utf8_and_utf16(tmp_path):
+    home = "C:\\Users\\private-builder"
+    utf8 = tmp_path / "launcher.exe"
+    utf16 = tmp_path / "metadata.bin"
+    utf8.write_bytes(("#!" + home + "\\python.exe").encode("utf-8"))
+    utf16.write_bytes(home.encode("utf-16-le"))
+    needles = (home.casefold().encode("utf-8"), home.casefold().encode("utf-16-le"))
+    assert contains_owner_path(utf8, needles)
+    assert contains_owner_path(utf16, needles)

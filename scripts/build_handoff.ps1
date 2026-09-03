@@ -51,6 +51,20 @@ Get-ChildItem -LiteralPath $payload -File -Recurse -Force -Filter '*.pyc' | ForE
     Remove-Item -LiteralPath $_.FullName -Force
 }
 
+$scanPython = (Get-Command python.exe -ErrorAction Stop).Source
+$previousNoBytecode = $env:PYTHONDONTWRITEBYTECODE
+try {
+    $env:PYTHONDONTWRITEBYTECODE = '1'
+    & $scanPython (Join-Path $pluginRoot 'scripts\package_owner_path_scan.py') $stage
+    if ($LASTEXITCODE -ne 0) { throw 'Package contains a build-machine user-profile path.' }
+} finally {
+    if ($null -eq $previousNoBytecode) {
+        Remove-Item Env:PYTHONDONTWRITEBYTECODE -ErrorAction SilentlyContinue
+    } else {
+        $env:PYTHONDONTWRITEBYTECODE = $previousNoBytecode
+    }
+}
+
 $runtimeReceipt = Get-Content -LiteralPath (Join-Path $pluginRoot 'receipts\runtime.json') -Raw | ConvertFrom-Json
 $release = [ordered]@{
     product = 'imap-plugin-windows-handoff'

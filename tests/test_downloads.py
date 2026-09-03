@@ -3,7 +3,9 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 from imap_plugin import downloads
-from imap_plugin.downloads import is_potentially_executable, safe_download_name, save_attachment
+import pytest
+
+from imap_plugin.downloads import DownloadError, is_potentially_executable, safe_download_name, save_attachment
 
 
 def test_download_name_blocks_traversal_reserved_names_and_control_characters():
@@ -47,3 +49,26 @@ def test_macos_quarantine_falls_back_to_xattr_command(monkeypatch, tmp_path):
     assert calls[0][:3] == ["/usr/bin/xattr", "-w", "com.apple.quarantine"]
     assert calls[0][3].startswith("0081;")
     assert calls[0][4] == str(attachment)
+
+
+def test_attachment_is_removed_when_required_platform_marker_fails(monkeypatch, tmp_path):
+    monkeypatch.setattr(downloads, "_apply_required_platform_marker", lambda _path: (False, False, True))
+
+    with pytest.raises(DownloadError, match="safety marker"):
+        save_attachment("dangerous.exe", b"unit-binary", root=tmp_path, scanner=lambda _path: "unused")
+
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_attachment_remains_available_when_required_marker_succeeds(monkeypatch, tmp_path):
+    monkeypatch.setattr(downloads, "_apply_required_platform_marker", lambda _path: (True, False, True))
+
+    result = save_attachment(
+        "reviewed.pdf",
+        b"unit-pdf",
+        root=tmp_path,
+        scanner=lambda _path: "completed_no_detection_reported",
+    )
+
+    assert result["mark_of_the_web"] is True
+    assert (tmp_path / "reviewed.pdf").read_bytes() == b"unit-pdf"
