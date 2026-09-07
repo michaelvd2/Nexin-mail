@@ -70,7 +70,7 @@ value = {
             "args": ["-m", "imap_plugin.server"],
             "env": {"PYTHONPATH": str(root / "src"), "PYTHONDONTWRITEBYTECODE": "1"},
             "startup_timeout_sec": 20,
-            "tool_timeout_sec": 360,
+            "tool_timeout_sec": 660,
         }
     }
 }

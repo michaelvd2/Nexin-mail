@@ -26,12 +26,7 @@ def main() -> int:
         print(json.dumps(result.public_dict(), separators=(",", ":")))
         return 0
     except AutoConfigurationError as exc:
-        print(json.dumps({
-            "status": "error",
-            "error_code": "autodiscovery_failed",
-            "domain": exc.domain,
-            "message": str(exc),
-        }, separators=(",", ":")))
+        print(json.dumps(exc.public_dict(), separators=(",", ":")))
         return 20
     except Exception:
         print(json.dumps({

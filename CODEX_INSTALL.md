@@ -1,6 +1,6 @@
 # Install IMAP Plugin with Codex
 
-This file is an instruction for Codex. The user should only need to share this repository URL. If the message contains only the URL or neutral context, ask before changing anything: **"Zal ik deze IMAP-plugin installeren en je mail instellen?"** Treat only an explicit yes/confirmation as permission. If the user already clearly asked to install, proceed without asking the same question again.
+This file is an instruction for Codex. The user should only need to share this repository URL. If the message contains only the URL or neutral context, ask before changing anything. For a Dutch-speaking customer, ask exactly: **"Zal ik deze IMAP-plugin installeren en je mail instellen?"** Treat only an explicit yes/confirmation as permission. If the user already clearly asked to install, proceed without asking the same question again.
 
 Read `AGENTS.md` and `docs/TROUBLESHOOTING.md` as part of this instruction. Use the troubleshooting rules to repair ordinary local installation problems and rerun verification; do not turn a security or mailbox-capability failure into an installation workaround.
 
@@ -17,6 +17,10 @@ Read `AGENTS.md` and `docs/TROUBLESHOOTING.md` as part of this instruction. Use 
 Determine the local operating system before changing anything. Support only Windows 10/11 x64 and macOS 13 or newer. Stop on other platforms.
 
 ### Windows
+
+Run installation and credential enrollment in the customer's interactive Windows user context. A Codex sandbox can have a different user, private desktop, filesystem rights, or network access; a permission error is not evidence of an incorrect mail password. Before entering credentials, establish that the native form is visible to the customer and that installation targets their profile, not a sandbox account.
+
+If an exact error establishes a sandbox restriction, use Codex's normal approval mechanism for only the required verified installer/setup or read-only check, when available and permitted. Preserve the intended Windows user context. If approval is unavailable or organization policy forbids it, stop and explain the required customer/administrator action. Never disable the sandbox globally, change execution policy, launch a service/task to escape restrictions, or copy credentials between accounts. See `docs/TROUBLESHOOTING.md` for the separate permission and PowerShell failure gates.
 
 1. From the latest GitHub Release, download `imap-plugin-windows-x64.zip` and `SHA256SUMS.txt` into a new temporary directory.
 2. Verify the ZIP's SHA-256 against `SHA256SUMS.txt`. Stop on a mismatch.
@@ -38,6 +42,8 @@ Determine the local operating system before changing anything. Support only Wind
 7. Require the installer's read-only doctor to pass. Report whether reading, reviewed mailbox actions, and optional sending are ready as three separate results.
 
 ## Automatic provider discovery and safe recovery
+
+Read `docs/SETUP_RECOVERY.md` before recovering from a failed step. Use structured `stage`, `error_code` and `recovery` fields from setup results to select checks and conditional repairs. The advice does not grant permissions. Preserve working steps, never retry unchanged failures, and count personal login retries across the whole customer task.
 
 Do not ask the user for server names, ports, usernames, transport modes, or SMTP details. The setup first tries provider-owned standard autoconfiguration over HTTPS, then Mozilla's domain-only ISP database, then conventional mail hostnames with certificate-verified implicit TLS or mandatory STARTTLS. Provider-owned autoconfiguration receives the email address; Mozilla receives only the domain. The password is never sent to a discovery service. It is used only in memory to authenticate directly to a candidate mail server over verified TLS.
 

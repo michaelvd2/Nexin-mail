@@ -92,8 +92,15 @@ if (-not $ForceSetup) {
     $alreadyHealthy = $LASTEXITCODE -eq 0
 }
 if (-not $SkipSetup -and ($ForceSetup -or -not $alreadyHealthy)) {
-    & (Join-Path $pluginRoot 'scripts\setup.cmd')
-    if ($LASTEXITCODE -ne 0) { throw 'Native mailbox setup was cancelled or failed. The plugin is installed but not accepted end to end; rerun install.ps1 or setup.cmd.' }
+    $previousHost = $env:IMAP_PLUGIN_POWERSHELL
+    try {
+        $env:IMAP_PLUGIN_POWERSHELL = (Get-Process -Id $PID).Path
+        & (Join-Path $pluginRoot 'scripts\setup.cmd')
+        $setupExitCode = $LASTEXITCODE
+    } finally {
+        $env:IMAP_PLUGIN_POWERSHELL = $previousHost
+    }
+    if ($setupExitCode -ne 0) { throw 'De plugin is geregistreerd, maar de mailsetup is niet afgerond. Gebruik de foutcode hierboven voor gericht herstel; verander geen sandbox- of Windows-beveiliging automatisch.' }
 }
 
 $doctor = $null

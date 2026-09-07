@@ -10,6 +10,10 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "src"))
+
+from imap_plugin.windows_host import PowerShellUnavailable, powershell_command
+from imap_plugin.setup_recovery import recovery_report
 
 
 def _arguments() -> argparse.Namespace:
@@ -57,17 +61,44 @@ def main() -> int:
     if hints:
         environment["IMAP_PLUGIN_DISCOVERY_HINTS"] = json.dumps(hints, separators=(",", ":"))
     if os.name == "nt":
-        command = ["powershell.exe", "-NoLogo", "-NoProfile", "-STA", "-File", str(ROOT / "scripts" / "enroll_gui.ps1")]
+        try:
+            command = powershell_command(ROOT / "scripts" / "enroll_gui.ps1")
+        except PowerShellUnavailable:
+            print(json.dumps(recovery_report({"error_code": "powershell_blocked"})))
+            return 21
     elif platform.system() == "Darwin":
         command = [sys.executable, str(ROOT / "scripts" / "setup_macos.py")]
     else:
         raise RuntimeError("IMAP Plugin secure enrollment is available only on Windows and macOS")
-    completed = subprocess.run(
-        command,
-        cwd=ROOT,
-        check=False,
-        env=environment,
-    )
+    try:
+        completed = subprocess.run(
+            command,
+            cwd=ROOT,
+            check=False,
+            env=environment,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+    except OSError as exc:
+        code = "permission_denied" if isinstance(exc, PermissionError) else "setup_launch_failed"
+        print(json.dumps(recovery_report({"error_code": code})))
+        return 21
+    # Native runtime errors must not dump process diagnostics into the customer chat.
+    try:
+        result = json.loads(completed.stdout)
+        if not isinstance(result, dict) or result.get("status") not in {"configured", "error", "cancelled"}:
+            raise ValueError("invalid setup result")
+    except (ValueError, TypeError):
+        result = recovery_report({"error_code": "setup_launch_failed"})
+        print(json.dumps(result, ensure_ascii=True))
+        return 21
+    if result["status"] == "error":
+        result = recovery_report(result)
+    print(json.dumps(result, ensure_ascii=True))
+    if result["status"] == "error" and completed.returncode == 0:
+        return 20
     return int(completed.returncode)
 
 

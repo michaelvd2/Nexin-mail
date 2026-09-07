@@ -25,6 +25,10 @@ foreach ($name in @('SKILL.md', 'HANDOFF.md', 'install.ps1', 'verify.ps1', 'unin
 foreach ($name in @('AGENTS.md', 'CODEX_INSTALL.md')) {
     Copy-Item -LiteralPath (Join-Path $pluginRoot $name) -Destination (Join-Path $stage $name)
 }
+[IO.Directory]::CreateDirectory((Join-Path $stage 'docs')) | Out-Null
+foreach ($name in @('SETUP_RECOVERY.md', 'TROUBLESHOOTING.md')) {
+    Copy-Item -LiteralPath (Join-Path $pluginRoot "docs\$name") -Destination (Join-Path $stage "docs\$name")
+}
 $marketplaceDirectory = Join-Path $stage '.agents\plugins'
 [IO.Directory]::CreateDirectory($marketplaceDirectory) | Out-Null
 Copy-Item -LiteralPath (Join-Path $handoffSource 'marketplace.json') -Destination (Join-Path $marketplaceDirectory 'marketplace.json')

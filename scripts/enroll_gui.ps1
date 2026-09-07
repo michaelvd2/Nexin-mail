@@ -1,4 +1,6 @@
 $ErrorActionPreference = 'Stop'
+[Console]::OutputEncoding = New-Object Text.UTF8Encoding($false)
+$script:setupReport = $null
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
@@ -178,7 +180,10 @@ function Invoke-AutoConfigure([string]$EmailAddress, [string]$Password) {
         $process.WaitForExit()
         if ([string]::IsNullOrWhiteSpace($output)) { throw 'Automatic setup returned no result.' }
         try { $result = $output | ConvertFrom-Json } catch { throw 'Automatic setup returned an invalid result.' }
-        if ($process.ExitCode -ne 0 -or $result.status -ne 'configured') { throw [string]$result.message }
+        if ($process.ExitCode -ne 0 -or $result.status -ne 'configured') {
+            $script:setupReport = $result
+            throw 'De mailcontrole is niet gelukt.'
+        }
         return $result
     } finally {
         $request = $null
@@ -196,6 +201,7 @@ $accentHoverColor = [Drawing.Color]::FromArgb(27, 85, 196)
 $statusBackground = [Drawing.Color]::FromArgb(238, 245, 255)
 
 $form = New-Object Windows.Forms.Form
+$form.SuspendLayout()
 $form.Text = 'IMAP Plugin'
 $form.ClientSize = New-Object Drawing.Size(720, 500)
 $form.StartPosition = 'CenterScreen'
@@ -203,6 +209,7 @@ $form.TopMost = $true
 $form.FormBorderStyle = 'FixedDialog'
 $form.MaximizeBox = $false
 $form.MinimizeBox = $false
+$form.AutoScaleDimensions = New-Object Drawing.SizeF(96, 96)
 $form.AutoScaleMode = [Windows.Forms.AutoScaleMode]::Dpi
 $form.BackColor = $background
 $form.Font = New-Object Drawing.Font('Segoe UI', 10)
@@ -232,14 +239,14 @@ $title.Location = New-Object Drawing.Point(32, 39)
 $title.Size = New-Object Drawing.Size(640, 36)
 $title.Font = New-Object Drawing.Font('Segoe UI', 21, [Drawing.FontStyle]::Bold)
 $title.ForeColor = $textColor
-$title.Text = 'Connect your email'
+$title.Text = 'Verbind je e-mail'
 $header.Controls.Add($title)
 
 $intro = New-Object Windows.Forms.Label
 $intro.Location = New-Object Drawing.Point(34, 82)
-$intro.Size = New-Object Drawing.Size(650, 30)
+$intro.Size = New-Object Drawing.Size(650, 42)
 $intro.ForeColor = $mutedColor
-$intro.Text = 'Secure setup takes one step. We detect your provider settings automatically and keep your password on this computer.'
+$intro.Text = 'Vul je e-mailadres en wachtwoord in. We zoeken veilige serverinstellingen. Je wachtwoord blijft op deze computer.'
 $header.Controls.Add($intro)
 
 $card = New-Object Windows.Forms.Panel
@@ -252,7 +259,7 @@ $form.Controls.Add($card)
 $cardTitle = New-Object Windows.Forms.Label
 $cardTitle.Location = New-Object Drawing.Point(24, 15)
 $cardTitle.Size = New-Object Drawing.Size(600, 22)
-$cardTitle.Text = 'Secure connection'
+$cardTitle.Text = 'Veilige verbinding'
 $cardTitle.ForeColor = $textColor
 $cardTitle.Font = New-Object Drawing.Font('Segoe UI', 10, [Drawing.FontStyle]::Bold)
 $card.Controls.Add($cardTitle)
@@ -260,7 +267,7 @@ $card.Controls.Add($cardTitle)
 $cardHint = New-Object Windows.Forms.Label
 $cardHint.Location = New-Object Drawing.Point(24, 38)
 $cardHint.Size = New-Object Drawing.Size(600, 20)
-$cardHint.Text = 'Use your normal password or a provider-issued app password.'
+$cardHint.Text = 'Gebruik je wachtwoord of een app-wachtwoord van je provider.'
 $cardHint.ForeColor = $mutedColor
 $cardHint.Font = New-Object Drawing.Font('Segoe UI', 9)
 $card.Controls.Add($cardHint)
@@ -268,7 +275,7 @@ $card.Controls.Add($cardHint)
 $emailLabel = New-Object Windows.Forms.Label
 $emailLabel.Location = New-Object Drawing.Point(24, 76)
 $emailLabel.Size = New-Object Drawing.Size(128, 24)
-$emailLabel.Text = 'Email address'
+$emailLabel.Text = 'E-mailadres'
 $emailLabel.ForeColor = $textColor
 $card.Controls.Add($emailLabel)
 
@@ -285,7 +292,7 @@ $card.Controls.Add($email)
 $passwordLabel = New-Object Windows.Forms.Label
 $passwordLabel.Location = New-Object Drawing.Point(24, 118)
 $passwordLabel.Size = New-Object Drawing.Size(128, 24)
-$passwordLabel.Text = 'Password'
+$passwordLabel.Text = 'Wachtwoord'
 $passwordLabel.ForeColor = $textColor
 $card.Controls.Add($passwordLabel)
 
@@ -303,7 +310,7 @@ $card.Controls.Add($password)
 $showPassword = New-Object Windows.Forms.CheckBox
 $showPassword.Location = New-Object Drawing.Point(500, 116)
 $showPassword.Size = New-Object Drawing.Size(120, 24)
-$showPassword.Text = 'Show password'
+$showPassword.Text = 'Tonen'
 $showPassword.ForeColor = $mutedColor
 $showPassword.Font = New-Object Drawing.Font('Segoe UI', 9)
 $showPassword.Checked = $false
@@ -322,14 +329,14 @@ $status = New-Object Windows.Forms.Label
 $status.Location = New-Object Drawing.Point(16, 12)
 $status.Size = New-Object Drawing.Size(624, 38)
 $status.ForeColor = $accentColor
-$status.Text = 'Ready when you are. Secure settings will be detected automatically.'
+$status.Text = 'Na de controle gaat Codex automatisch verder, ook als hulp nodig is.'
 $status.AutoEllipsis = $true
 $statusPanel.Controls.Add($status)
 
 $footerNote = New-Object Windows.Forms.Label
 $footerNote.Location = New-Object Drawing.Point(32, 420)
 $footerNote.Size = New-Object Drawing.Size(440, 24)
-$footerNote.Text = 'Credentials stay on this computer and are never sent to Codex.'
+$footerNote.Text = 'Je wachtwoord wordt niet naar Codex gestuurd.'
 $footerNote.ForeColor = $mutedColor
 $footerNote.Font = New-Object Drawing.Font('Segoe UI', 9)
 $form.Controls.Add($footerNote)
@@ -337,7 +344,7 @@ $form.Controls.Add($footerNote)
 $connectButton = New-Object Windows.Forms.Button
 $connectButton.Location = New-Object Drawing.Point(496, 444)
 $connectButton.Size = New-Object Drawing.Size(112, 38)
-$connectButton.Text = 'Connect'
+$connectButton.Text = 'Verbinden'
 $connectButton.Font = New-Object Drawing.Font('Segoe UI', 10, [Drawing.FontStyle]::Bold)
 $connectButton.BackColor = $accentColor
 $connectButton.ForeColor = $surface
@@ -352,7 +359,7 @@ $form.AcceptButton = $connectButton
 $cancelButton = New-Object Windows.Forms.Button
 $cancelButton.Location = New-Object Drawing.Point(616, 444)
 $cancelButton.Size = New-Object Drawing.Size(72, 38)
-$cancelButton.Text = 'Cancel'
+$cancelButton.Text = 'Sluiten'
 $cancelButton.ForeColor = $textColor
 $cancelButton.BackColor = $surface
 $cancelButton.FlatStyle = [Windows.Forms.FlatStyle]::Flat
@@ -366,14 +373,20 @@ $form.Controls.Add($cancelButton)
 $form.CancelButton = $cancelButton
 
 $connectButton.Add_Click({
+    $address = $email.Text.Trim()
+    if ($address -notmatch '^[^\s@]+@[^\s@]+$' -or [string]::IsNullOrEmpty($password.Text)) {
+        $status.ForeColor = [Drawing.Color]::DarkRed
+        $status.Text = 'Vul een geldig e-mailadres en je wachtwoord of app-wachtwoord in.'
+        return
+    }
     $connectButton.Enabled = $false
     $status.ForeColor = [Drawing.Color]::DarkBlue
-    $status.Text = 'Finding and verifying secure mail settings...'
+    $status.Text = 'Veilige serverinstellingen zoeken en controleren...'
+    $form.Refresh()
+    $stage = 'connection'
     try {
-        $address = $email.Text.Trim()
-        if ($address -notmatch '^[^\s@]+@[^\s@]+$') { throw 'Enter one valid email address.' }
-        if ([string]::IsNullOrEmpty($password.Text)) { throw 'Enter your password or provider-issued app password.' }
         $result = Invoke-AutoConfigure $address $password.Text
+        $stage = 'local_storage'
         [ImapPluginCredential]::WriteLocalMachine('imap-plugin/imap', $password.Text)
         [void][ImapPluginCredential]::Metadata('imap-plugin/imap')
         if ([bool]$result.smtp_configured) {
@@ -381,19 +394,22 @@ $connectButton.Add_Click({
             [void][ImapPluginCredential]::Metadata('imap-plugin/smtp')
         }
         Write-Config $result
-        $capabilities = @('reading')
-        if ([bool]$result.mailbox_actions_ready) { $capabilities += 'reviewed mailbox actions' }
-        if ([bool]$result.send_ready) { $capabilities += 'reviewed sending' }
-        [Windows.Forms.MessageBox]::Show(
-            ('Connected. Ready for ' + ($capabilities -join ', ') + '.'),
-            'IMAP Plugin',
-            [Windows.Forms.MessageBoxButtons]::OK,
-            [Windows.Forms.MessageBoxIcon]::Information
-        ) | Out-Null
+        $script:setupReport = [ordered]@{
+            status = 'configured'
+            mailbox_actions_ready = [bool]$result.mailbox_actions_ready
+            send_ready = [bool]$result.send_ready
+            smtp_diagnostics = $result.smtp_diagnostics
+        }
         $form.DialogResult = [Windows.Forms.DialogResult]::OK
     } catch {
-        $status.ForeColor = [Drawing.Color]::DarkRed
-        $status.Text = $_.Exception.Message
+        if ($null -eq $script:setupReport) {
+            $script:setupReport = [ordered]@{
+                status = 'error'
+                error_code = if ($stage -eq 'local_storage') { 'local_storage_failed' } else { 'setup_failed' }
+                message = if ($stage -eq 'local_storage') { 'De mailverbinding werkt, maar lokale opslag mislukt. Controleer de gebruikerscontext, Credential Manager en maprechten. De installatie is nog niet afgerond.' } else { 'De lokale setup kon niet afronden. Codex kan de installatiecomponenten controleren.' }
+            }
+        }
+        $form.DialogResult = [Windows.Forms.DialogResult]::Abort
     } finally {
         $password.Clear()
         $showPassword.Checked = $false
@@ -402,9 +418,14 @@ $connectButton.Add_Click({
 })
 
 $form.Add_Shown({ $email.Focus() })
+$form.ResumeLayout($true)
 $result = $form.ShowDialog()
 $showPassword.Checked = $false
 $password.Clear()
-if ($result -ne [Windows.Forms.DialogResult]::OK) {
-    throw 'Mailbox setup was cancelled or did not complete.'
+if ($null -ne $script:setupReport) {
+    $script:setupReport | ConvertTo-Json -Compress -Depth 6
+    if ($result -ne [Windows.Forms.DialogResult]::OK) { exit 20 }
+    exit 0
 }
+[ordered]@{ status = 'cancelled'; message = 'De setup is gesloten. Er wordt niet automatisch opnieuw geprobeerd.' } | ConvertTo-Json -Compress
+exit 2

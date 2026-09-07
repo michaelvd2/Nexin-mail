@@ -4,7 +4,6 @@ import json
 import os
 import tempfile
 import tkinter as tk
-from tkinter import messagebox
 
 from imap_plugin.autoconfig import AutoConfigurationError, autoconfigure
 from imap_plugin.config import AccountConfig, config_path
@@ -86,6 +85,7 @@ def main() -> int:
     show_value = tk.BooleanVar(value=False)
     status_value = tk.StringVar(value="")
     completed = False
+    report: dict[str, object] = {"status": "cancelled"}
 
     frame = tk.Frame(root, padx=28, pady=24)
     frame.pack(fill="both", expand=True)
@@ -147,8 +147,11 @@ def main() -> int:
         root.destroy()
 
     def connect() -> None:
-        nonlocal completed
+        nonlocal completed, report
         password = password_value.get()
+        if "@" not in email_value.get() or not password:
+            status_value.set("Vul je e-mailadres en wachtwoord of app-wachtwoord in.")
+            return
         connect_button.configure(state="disabled")
         status.configure(fg="#333333")
         status_value.set("Finding your provider settings and checking the connection...")
@@ -165,31 +168,19 @@ def main() -> int:
                 store.write_secret(result.settings.smtp_credential_target, password)
             _write_config(result.settings)
 
-            features = ["reading"]
-            if result.mailbox_actions_ready:
-                features.append("reviewed mailbox actions")
-            if result.send_ready:
-                features.append("reviewed sending")
             completed = True
             password_value.set("")
-            messagebox.showinfo(
-                "IMAP Plugin setup",
-                "Connected successfully. Ready for " + ", ".join(features) + ".",
-            )
-            root.destroy()
+            report = {"status": "configured", "mailbox_actions_ready": result.mailbox_actions_ready,
+                      "send_ready": result.send_ready, "smtp_diagnostics": list(result.smtp_diagnostics)}
         except AutoConfigurationError as exc:
-            status.configure(fg="#8B1A1A")
-            status_value.set(str(exc))
+            report = exc.public_dict()
         except Exception:
-            status.configure(fg="#8B1A1A")
-            status_value.set(
-                "Setup could not be completed. No password was written to a file."
-            )
+            report = {"status": "error", "error_code": "setup_failed",
+                      "message": "De lokale setup is niet afgerond. Controleer gebruikerscontext, Keychain en installatiecomponenten."}
         finally:
             password = ""
             password_value.set("")
-            if not completed and root.winfo_exists():
-                connect_button.configure(state="normal")
+            root.destroy()
 
     tk.Button(buttons, text="Cancel", width=11, command=cancel).pack(
         side="right", padx=(8, 0)
@@ -207,7 +198,8 @@ def main() -> int:
     root.bind("<Return>", lambda _event: connect())
     email_entry.focus_set()
     root.mainloop()
-    return 0 if completed else 1
+    print(json.dumps(report, ensure_ascii=True))
+    return 0 if completed else (20 if report["status"] == "error" else 2)
 
 
 if __name__ == "__main__":

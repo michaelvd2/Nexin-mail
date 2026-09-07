@@ -8,9 +8,18 @@ import sys
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
+from .windows_host import PowerShellUnavailable, powershell_command
+from .setup_recovery import recovery_report
+
 
 class ReviewError(RuntimeError):
     pass
+
+
+class SetupError(ReviewError):
+    def __init__(self, result: Any) -> None:
+        self.report = recovery_report(result)
+        super().__init__(self.report["message"])
 
 
 Reviewer = Callable[[str, Mapping[str, Any], bool], bool]
@@ -24,7 +33,10 @@ def native_review(title: str, payload: Mapping[str, Any], require_checkbox: bool
     system = platform.system()
     if os.name == "nt":
         script = plugin_root() / "scripts" / "review.ps1"
-        command = ["powershell.exe", "-NoLogo", "-NoProfile", "-STA", "-File", str(script)]
+        try:
+            command = powershell_command(script)
+        except PowerShellUnavailable as exc:
+            raise ReviewError(str(exc)) from exc
     elif system == "Darwin":
         script = plugin_root() / "scripts" / "review_macos.py"
         command = [sys.executable, str(script)]
@@ -70,8 +82,8 @@ def native_review(title: str, payload: Mapping[str, Any], require_checkbox: bool
 def launch_setup() -> bool:
     system = platform.system()
     if os.name == "nt":
-        script = plugin_root() / "scripts" / "enroll_gui.ps1"
-        command = ["powershell.exe", "-NoLogo", "-NoProfile", "-STA", "-File", str(script)]
+        script = plugin_root() / "scripts" / "configure.py"
+        command = [sys.executable, "-X", "utf8", str(script)]
     elif system == "Darwin":
         script = plugin_root() / "scripts" / "setup_macos.py"
         command = [sys.executable, str(script)]
@@ -84,9 +96,19 @@ def launch_setup() -> bool:
             command,
             timeout=600,
             check=False,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
         )
     except subprocess.TimeoutExpired as exc:
-        raise ReviewError("mailbox setup expired without completing") from exc
+        raise SetupError({"error_code": "setup_timeout"}) from exc
     except OSError as exc:
-        raise ReviewError("the secure setup form could not start") from exc
+        raise SetupError({"error_code": "permission_denied" if isinstance(exc, PermissionError) else "setup_launch_failed"}) from exc
+    if completed.returncode not in {0, 2}:
+        try:
+            result = json.loads(completed.stdout)
+        except ValueError:
+            result = {"error_code": "setup_launch_failed"}
+        raise SetupError(result)
     return completed.returncode == 0

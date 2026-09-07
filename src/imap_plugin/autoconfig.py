@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import ssl
+import socket
+import smtplib
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -8,9 +10,9 @@ import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from typing import Any, Callable, Iterable
 
-from .bridge import MailBridge
+from .bridge import MailBridge, MailAuthenticationError, MailTlsError, MailLoginDisabledError
 from .config import AccountConfig, _validated_hostname
-from .sender import MailSender
+from .sender import MailSender, SendError
 
 
 MAX_AUTOCONFIG_BYTES = 262_144
@@ -18,9 +20,50 @@ DISCOVERY_TIMEOUT_SECONDS = 8.0
 
 
 class AutoConfigurationError(RuntimeError):
-    def __init__(self, message: str, *, domain: str = "") -> None:
+    def __init__(self, message: str, *, domain: str = "", code: str = "autodiscovery_failed", diagnostics: list[dict[str, Any]] | None = None) -> None:
         super().__init__(message)
         self.domain = domain
+        self.code = code
+        self.diagnostics = diagnostics or []
+
+    def public_dict(self) -> dict[str, Any]:
+        return {"status": "error", "error_code": self.code, "domain": self.domain,
+                "message": str(self), "diagnostics": self.diagnostics}
+
+
+FAILURE_MESSAGES = {
+    "permission_denied": "De verbinding wordt door lokale toegangsrechten geblokkeerd. Controleer sandbox- en netwerktoestemming voordat je opnieuw inlogt; wijzig geen beveiliging automatisch.",
+    "authentication_failed": "De mailserver weigert de login. Controleer je gebruikersnaam, wachtwoord of app-wachtwoord en of IMAP voor je account is ingeschakeld.",
+    "password_login_disabled": "Deze server staat IMAP-login met een wachtwoord niet toe. Controleer bij je provider of een app-wachtwoord of OAuth-inlog nodig is. Deze setup ondersteunt nog geen OAuth.",
+    "tls_failed": "De beveiligde verbinding met de mailserver kon niet worden bevestigd. Codex kan de officiele servernaam en certificaatinstellingen controleren.",
+    "network_failed": "De mailserver is niet bereikbaar. Controleer de internetverbinding, firewall en de serverinstellingen van je provider.",
+    "dns_failed": "De gevonden mailservernamen kunnen niet worden opgezocht. Codex kan de officiele serverinstellingen van je provider controleren.",
+    "autodiscovery_failed": "De automatische IMAP-controle is niet gelukt. Codex kan de officiele providerinstellingen gebruiken voor een gerichte nieuwe poging.",
+}
+
+
+def _failure_code(exc: Exception) -> str:
+    # Never expose exception text: protocol replies can echo credentials or personal data.
+    if isinstance(exc, SendError) and isinstance(exc.__cause__, Exception):
+        exc = exc.__cause__
+    if isinstance(exc, PermissionError) or getattr(exc, "winerror", None) == 10013:
+        return "permission_denied"
+    if isinstance(exc, (MailAuthenticationError, smtplib.SMTPAuthenticationError)):
+        return "authentication_failed"
+    if isinstance(exc, MailLoginDisabledError):
+        return "password_login_disabled"
+    if isinstance(exc, (ssl.SSLError, MailTlsError)):
+        return "tls_failed"
+    if isinstance(exc, socket.gaierror):
+        return "dns_failed"
+    if isinstance(exc, (TimeoutError, ConnectionError, OSError)):
+        return "network_failed"
+    return "autodiscovery_failed"
+
+
+def _diagnostic(candidate: ServerCandidate, code: str) -> dict[str, Any]:
+    return {"host": candidate.host, "port": candidate.port, "security": candidate.security,
+            "error_code": code}
 
 
 @dataclass(frozen=True)
@@ -50,6 +93,7 @@ class AutoConfigurationResult:
     source: str
     mailbox_actions_ready: bool
     send_ready: bool
+    smtp_diagnostics: tuple[dict[str, Any], ...] = ()
 
     def public_dict(self) -> dict[str, Any]:
         settings = self.settings
@@ -69,6 +113,7 @@ class AutoConfigurationResult:
             "operator_enabled": settings.operator_enabled,
             "mailbox_actions_ready": self.mailbox_actions_ready,
             "send_ready": self.send_ready,
+            "smtp_diagnostics": list(self.smtp_diagnostics),
         }
 
 
@@ -242,6 +287,10 @@ def discover_candidates(
     if hint_smtp:
         smtp.append(hint_smtp)
 
+    # Explicit provider settings are a targeted recovery, not another broad discovery pass.
+    if hint_imap:
+        return imap, smtp, domain
+
     encoded_email = urllib.parse.quote(email, safe="")
     urls = (
         (f"https://autoconfig.{domain}/mail/config-v1.1.xml?emailaddress={encoded_email}", "provider-autoconfig"),
@@ -315,32 +364,69 @@ def autoconfigure(
     probe_imap = imap_probe or _probe_imap
     selected_imap: ServerCandidate | None = None
     health: dict[str, Any] = {}
+    diagnostics: list[dict[str, Any]] = []
+    rejected_usernames: set[str] = set()
+    failed_endpoints: set[tuple[str, int, str]] = set()
     for candidate in imap_candidates:
+        endpoint = (candidate.host, candidate.port, candidate.security)
+        if candidate.username in rejected_usernames or endpoint in failed_endpoints:
+            continue
         try:
             health = probe_imap(candidate, password, email)
             if health.get("tls", {}).get("verified") is True:
                 selected_imap = candidate
                 break
-        except Exception:
-            continue
+            code = "tls_failed"
+        except Exception as exc:
+            code = _failure_code(exc)
+        diagnostics.append(_diagnostic(candidate, code))
+        if code == "authentication_failed":
+            rejected_usernames.add(candidate.username)
+            # At most two rejected username formats; never spray a bad password across hosts.
+            if len(rejected_usernames) >= 2 or candidate.source == "official-provider-hint":
+                break
+        else:
+            failed_endpoints.add(endpoint)
+        if code in {"password_login_disabled", "permission_denied"}:
+            break
     if selected_imap is None:
+        codes = {item["error_code"] for item in diagnostics}
+        code = next((value for value in FAILURE_MESSAGES if value in codes), "autodiscovery_failed")
         raise AutoConfigurationError(
-            f"Automatic setup could not verify secure IMAP settings for {domain}. Codex can retry using the provider's official settings; the password was not logged.",
+            FAILURE_MESSAGES[code],
             domain=domain,
+            code=code,
+            diagnostics=diagnostics,
         )
 
     gates = health.get("operator_features", {})
     mailbox_actions_ready = all(gates.get(name) is True for name in ("safe_move", "drafts", "bin"))
     selected_smtp: ServerCandidate | None = None
     probe_smtp = smtp_probe or _probe_smtp
+    smtp_diagnostics: list[dict[str, Any]] = []
+    rejected_smtp_usernames: set[str] = set()
+    failed_smtp_endpoints: set[tuple[str, int, str]] = set()
     for candidate in smtp_candidates:
+        endpoint = (candidate.host, candidate.port, candidate.security)
+        if candidate.username in rejected_smtp_usernames or endpoint in failed_smtp_endpoints:
+            continue
         try:
             smtp_health = probe_smtp(selected_imap, candidate, password, email)
             if smtp_health.get("authenticated") is True and smtp_health.get("tls_verified") is True:
                 selected_smtp = candidate
                 break
-        except Exception:
-            continue
+            code = "authentication_failed" if smtp_health.get("tls_verified") else "tls_failed"
+        except Exception as exc:
+            code = _failure_code(exc)
+        smtp_diagnostics.append(_diagnostic(candidate, code))
+        if code == "permission_denied":
+            break
+        if code == "authentication_failed":
+            rejected_smtp_usernames.add(candidate.username)
+            if len(rejected_smtp_usernames) >= 2:
+                break
+        else:
+            failed_smtp_endpoints.add(endpoint)
 
     settings = AccountConfig(
         username=selected_imap.username,
@@ -362,4 +448,4 @@ def autoconfigure(
     sources = [selected_imap.source]
     if selected_smtp and selected_smtp.source not in sources:
         sources.append(selected_smtp.source)
-    return AutoConfigurationResult(settings, "+".join(sources), mailbox_actions_ready, send_ready)
+    return AutoConfigurationResult(settings, "+".join(sources), mailbox_actions_ready, send_ready, tuple(smtp_diagnostics))

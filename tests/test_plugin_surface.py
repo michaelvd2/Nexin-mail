@@ -123,8 +123,7 @@ def test_windows_setup_has_only_email_and_one_masked_password_field():
     assert "$password.UseSystemPasswordChar = -not $showPassword.Checked" in source
     assert source.count("$password.Clear()") >= 2
     assert "RedirectStandardInput = $true" in source
-    assert "'Email address'" in source
-    assert "'Password'" in source
+    assert source.count("New-Object Windows.Forms.TextBox") == 2
     for technical_field in (
         "IMAP username",
         "IMAP server",

@@ -17,6 +17,7 @@ def main() -> int:
     for required in ("AGENTS.md", "CODEX_INSTALL.md", "README.md", "PRIVACY.md"):
         assert (ROOT / required).is_file(), f"required repository instruction is missing: {required}"
     assert (ROOT / "docs" / "TROUBLESHOOTING.md").is_file()
+    assert (ROOT / "docs" / "SETUP_RECOVERY.md").is_file()
     for required in (
         "autoconfigure.py",
         "install_macos.sh",

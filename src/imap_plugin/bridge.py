@@ -28,6 +28,18 @@ class MailError(RuntimeError):
     pass
 
 
+class MailAuthenticationError(MailError):
+    pass
+
+
+class MailTlsError(MailError):
+    pass
+
+
+class MailLoginDisabledError(MailError):
+    pass
+
+
 class SizeLimitError(MailError):
     pass
 
@@ -370,13 +382,24 @@ class MailBridge:
                 self.settings.port,
                 timeout=self.settings.timeout_seconds,
             )
-            status, _ = client.starttls(ssl_context=context)
-            if str(status).upper() != "OK":
-                raise MailError("IMAP STARTTLS negotiation failed")
         try:
-            status, _ = client.login(self.settings.username, self.secret_reader(self.settings.credential_target))
+            if self.settings.imap_security == "starttls":
+                try:
+                    status, _ = client.starttls(ssl_context=context)
+                except imaplib.IMAP4.error as exc:
+                    raise MailTlsError("IMAP STARTTLS negotiation failed") from exc
+                if str(status).upper() != "OK":
+                    raise MailTlsError("IMAP STARTTLS negotiation failed")
+            if b"LOGINDISABLED" in getattr(client, "capabilities", ()):
+                raise MailLoginDisabledError("IMAP password login is disabled")
+            try:
+                status, _ = client.login(self.settings.username, self.secret_reader(self.settings.credential_target))
+            except imaplib.IMAP4.abort:
+                raise
+            except imaplib.IMAP4.error as exc:
+                raise MailAuthenticationError("IMAP authentication failed") from exc
             if str(status).upper() != "OK":
-                raise MailError("IMAP authentication failed")
+                raise MailAuthenticationError("IMAP authentication failed")
             yield client
         finally:
             try:
