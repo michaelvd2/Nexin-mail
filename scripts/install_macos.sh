@@ -64,7 +64,6 @@ root = Path(os.environ["PLUGIN_ROOT"]).resolve()
 value = {
     "mcpServers": {
         "imap": {
-            "title": "IMAP Plugin",
             "description": "Provider-independent local IMAP/SMTP connector with native macOS review for every change.",
             "cwd": str(root),
             "command": str(root / "runtime" / "venv" / "bin" / "python"),

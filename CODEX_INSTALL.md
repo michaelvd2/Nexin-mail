@@ -1,6 +1,6 @@
 # Install IMAP Plugin with Codex
 
-This file is an instruction for Codex. The user should only need to share this repository URL and ask Codex to install the plugin.
+This file is an instruction for Codex. The user should only need to share this repository URL. If the message contains only the URL or neutral context, ask before changing anything: **"Zal ik deze IMAP-plugin installeren en je mail instellen?"** Treat only an explicit yes/confirmation as permission. If the user already clearly asked to install, proceed without asking the same question again.
 
 Read `AGENTS.md` and `docs/TROUBLESHOOTING.md` as part of this instruction. Use the troubleshooting rules to repair ordinary local installation problems and rerun verification; do not turn a security or mailbox-capability failure into an installation workaround.
 
@@ -24,7 +24,7 @@ Determine the local operating system before changing anything. Support only Wind
 4. Read the extracted `SKILL.md` completely.
 5. Run `verify.ps1` from the extracted package root and stop on any manifest, runtime, or tool-surface failure.
 6. Run `install.ps1` from that same package root. Do not add flags that skip verification or setup.
-7. Pause while the user personally enters only their email address and password in the native masked setup window.
+7. Explain once that the user must enter only their email address and password in the native masked setup window. Keep the installer process alive and wait or poll in short bounded intervals until the window exits; do not end the turn or ask the user to type “klaar” or “done”. Treat the installer's final JSON and read-only doctor result as the completion signal.
 8. Require the installer's read-only doctor to pass. Report whether reading, reviewed mailbox actions, and optional sending are ready as three separate results.
 
 ### macOS
@@ -34,7 +34,7 @@ Determine the local operating system before changing anything. Support only Wind
 3. Run `python3 scripts/privacy_scan.py .` and `python3 scripts/validate_structure.py`. Stop on any failure.
 4. Confirm that the installed interpreter is Python 3.12.x and that Codex CLI is available.
 5. Run `sh scripts/install_macos.sh` from the repository root.
-6. Pause while the user personally enters only their email address and password in the masked macOS setup window. Secrets must be stored only in the current user's Keychain.
+6. Explain once that the user must enter only their email address and password in the masked macOS setup window. Keep the installer process alive and wait or poll in short bounded intervals until the window exits; do not end the turn or ask the user to type “klaar” or “done”. Secrets must be stored only in the current user's Keychain. Treat the installer's final result and read-only doctor result as the completion signal.
 7. Require the installer's read-only doctor to pass. Report whether reading, reviewed mailbox actions, and optional sending are ready as three separate results.
 
 ## Automatic provider discovery and safe recovery
@@ -45,6 +45,6 @@ If setup reports `autodiscovery_failed`, use only the reported domain to consult
 
 ## Completion
 
-After successful installation, ask the user to start a new Codex task. In that new task, call `setup_status` and then `mail_health`. Do not invoke any `review_*` tool unless the user explicitly requests that exact action.
+After successful installation, report the installer's final JSON and doctor result automatically; do not ask the user to confirm completion. Ask the user to start a new Codex task only to refresh the plugin/tool list. In that new task, call `setup_status` and then `mail_health`. Do not invoke any `review_*` tool unless the user explicitly requests that exact action.
 
 If installation fails, preserve the verified download, installer output, existing settings, credentials, and backups. Report the exact failed gate without weakening or bypassing it. Never create a scheduled task, launch agent, background health check, or recurring mailbox poll.

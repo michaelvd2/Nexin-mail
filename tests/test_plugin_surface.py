@@ -17,6 +17,14 @@ def payload(result):
     return json.loads(result.content[0].text)
 
 
+def test_server_uses_one_display_title():
+    server = build_server()
+    assert server._lowlevel_server.name == "imap-plugin"
+    assert server._lowlevel_server.title is None
+    config = json.loads((Path(__file__).parents[1] / ".mcp.json").read_text(encoding="utf-8"))
+    assert "title" not in config["mcpServers"]["imap"]
+
+
 def test_standalone_registry_is_exact_and_excludes_unsafe_raw_surface():
     names = {tool.name for tool in asyncio.run(build_server().list_tools())}
     assert names == set(READ_TOOLS + ACTION_TOOLS)

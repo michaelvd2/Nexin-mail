@@ -26,11 +26,11 @@ The plugin has no advertising, analytics, telemetry, hosted mail relay, or separ
 
 You do not need to understand the source code or run technical commands yourself.
 
+If you share only this repository URL, Codex should first ask: **"Zal ik deze IMAP-plugin installeren en je mail instellen?"** It should wait for your explicit confirmation before downloading or opening the setup window.
+
 1. Copy the URL of this GitHub page.
 2. Open a new task in Codex.
-3. Paste the URL and this instruction:
-
-   **Read `CODEX_INSTALL.md` and install this plugin.**
+3. Paste the URL. After you confirm the installation question, Codex reads `CODEX_INSTALL.md` and continues.
 
 4. Codex checks your computer, installs the right version, and opens a private setup window. Enter only your email address and password.
 5. When installation is complete, start a fresh Codex task and ask it to check your mail connection.

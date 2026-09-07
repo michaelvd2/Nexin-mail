@@ -1,7 +1,6 @@
 {
   "mcpServers": {
     "imap": {
-      "title": "IMAP Plugin",
       "description": "Provider-independent local IMAP/SMTP connector with native local review for every change. Platform installers configure the matching launcher.",
       "cwd": ".",
       "command": "cmd.exe",
