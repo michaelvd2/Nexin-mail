@@ -67,7 +67,7 @@ def test_installs_immutable_payload_and_one_plugin_without_mailbox_access(packag
     assert digest(package / "package-manifest.json") == before
     installed = dest / "packages" / before
     verify(installed)
-    mcp = json.loads((dest / "registry/plugins/nexin-mail/.mcp.json").read_text())
+    mcp = json.loads((dest / "registry/plugins/nexin-mail/.mcp.json").read_text(encoding="utf-8"))
     assert set(mcp["mcpServers"]) == {"mail"}
     config = mcp["mcpServers"]["mail"]
     assert Path(config["command"]).is_absolute()

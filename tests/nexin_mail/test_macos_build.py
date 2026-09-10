@@ -1,5 +1,6 @@
 from pathlib import Path
 import io
+import os
 import stat
 import tarfile
 
@@ -48,7 +49,9 @@ def test_macos_upstream_links_are_materialized_as_regular_files(tmp_path):
     target = root / "python" / "bin" / "python3"
     assert target.read_bytes() == b"runtime"
     assert not target.is_symlink()
-    assert stat.S_IMODE(target.stat().st_mode) == 0o755
+    assert stat.S_IMODE(target.stat().st_mode) == stat.S_IMODE((target.parent / "python3.12").stat().st_mode)
+    if os.name != "nt":
+        assert stat.S_IMODE(target.stat().st_mode) == 0o755
 
 
 def test_macos_upstream_traversal_is_rejected(tmp_path):

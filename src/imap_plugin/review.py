@@ -51,6 +51,18 @@ def plugin_root() -> Path:
 def native_review(title: str, payload: Mapping[str, Any], require_checkbox: bool = False) -> bool:
     if _contains_approval_material(payload):
         raise ReviewError("the native review payload cannot contain approval material")
+    request = json.dumps(
+        {
+            "version": 1,
+            "title": str(title)[:160],
+            "require_checkbox": bool(require_checkbox),
+            "payload": payload,
+        },
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+    if len(request.encode("utf-8")) > 1_500_000:
+        raise ReviewError("the review payload exceeds the local display limit")
     system = platform.system()
     if os.name == "nt":
         script = plugin_root() / "scripts" / "review.ps1"
@@ -65,18 +77,6 @@ def native_review(title: str, payload: Mapping[str, Any], require_checkbox: bool
         raise ReviewError("native action review is available only on Windows and macOS")
     if not script.is_file():
         raise ReviewError("the native review component is missing")
-    request = json.dumps(
-        {
-            "version": 1,
-            "title": str(title)[:160],
-            "require_checkbox": bool(require_checkbox),
-            "payload": payload,
-        },
-        ensure_ascii=False,
-        separators=(",", ":"),
-    )
-    if len(request.encode("utf-8")) > 1_500_000:
-        raise ReviewError("the review payload exceeds the local display limit")
     try:
         completed = subprocess.run(
             command,
