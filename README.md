@@ -24,11 +24,15 @@ does not imply that all analysis is local.
 Give Codex this repository link and say **"Install Nexin Mail on this computer."**
 Codex follows [CODEX_INSTALL.md](CODEX_INSTALL.md), detects the operating system
 and architecture, downloads and verifies the matching complete package, and
-registers it with the local native Codex app. You do not need to choose a ZIP,
+registers it with the local native Codex app, and opens the private setup form.
+Codex waits quietly while you fill it in, resumes after an interrupted wait,
+checks the connection, and continues to the dashboard. Cancellation stops setup;
+a failure returns a specific recovery step without retrying your login.
+You do not need to choose a ZIP,
 install Python, or run commands yourself. Enter account credentials only in the
 private native setup window when you are ready to connect your mailbox.
 
-The [cross-platform beta release](../../releases/tag/v0.2.0-beta.2) provides
+The [cross-platform beta release](../../releases/tag/v0.2.0-beta.3) provides
 Windows x64 and Apple Silicon Mac packages with their own checksums
 and build provenance. This is an unsigned testing beta. Native OS prompts and
 account setup can still require your input. The automatic GitHub **Source code**

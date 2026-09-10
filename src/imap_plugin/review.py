@@ -100,7 +100,7 @@ def native_review(title: str, payload: Mapping[str, Any], require_checkbox: bool
     raise ReviewError("the local review failed closed; nothing was changed")
 
 
-def launch_setup() -> bool:
+def launch_setup(*, timeout: float | None = 600) -> bool:
     system = platform.system()
     if os.name == "nt":
         script = plugin_root() / "scripts" / "configure.py"
@@ -115,7 +115,7 @@ def launch_setup() -> bool:
     try:
         completed = subprocess.run(
             command,
-            timeout=600,
+            timeout=timeout,
             check=False,
             capture_output=True,
             text=True,

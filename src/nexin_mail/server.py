@@ -36,7 +36,7 @@ def _unique(*groups: tuple[str, ...]) -> tuple[str, ...]:
 # Public protocol constants are intentionally derived from one registration
 # source.  They are also consumed by the local verifier and protocol tests.
 READ_TOOLS = _unique(
-    ("setup_status",),
+    ("setup_status", "wait_setup"),
     tuple(name for name in DASHBOARD_READ_TOOLS if name not in {"update_pack_settings", "set_priority_rules"}),
 )
 ACTION_TOOLS = _unique(

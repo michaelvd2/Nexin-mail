@@ -1075,6 +1075,22 @@ def _destination_from_args(args: argparse.Namespace) -> Path:
     return _absolute(Path(local) / "Nexin Mail")
 
 
+def _begin_setup(destination: Path, package_hash: str) -> dict[str, Any]:
+    active = destination / "packages" / package_hash
+    _verify_package_at(active, package_hash)
+    runtime = _package_runtime(active)
+    environment = dict(os.environ)
+    environment["PYTHONPATH"] = str(active / "payload" / "src")
+    environment["PYTHONDONTWRITEBYTECODE"] = "1"
+    command = [str(runtime), "-B", "-X", "utf8", "-m", "nexin_mail.setup_flow", "start"]
+    try:
+        completed = subprocess.run(command, env=environment, capture_output=True, text=True, encoding="utf-8", timeout=30, check=True)
+        return json.loads(completed.stdout)
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return {"status": "unconfirmed", "next_action": "inspect_setup_owner",
+                "resume_command": command[:-1] + ["status"], "pythonpath": environment["PYTHONPATH"]}
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Nexin Mail installeren zonder systeem-Python")
     parser.add_argument("action", nargs="?", choices=("install", "rollback", "uninstall"), default="install")
@@ -1084,6 +1100,8 @@ def main() -> int:
     parser.add_argument("--migrate-legacy", action="store_true")
     parser.add_argument("--confirm-migration", action="store_true")
     parser.add_argument("--target-hash")
+    parser.add_argument("--setup", action="store_true", help="Continue into private native account setup")
+    parser.add_argument("--skip-setup", action="store_false", dest="setup")
     args = parser.parse_args()
     events: list[dict[str, Any]] = []
     destination: Path | None = None
@@ -1106,6 +1124,9 @@ def main() -> int:
             result = rollback(destination, codex, events, target_hash=args.target_hash)
         else:
             result = uninstall(destination, codex, events)
+        if args.action == "install" and args.setup:
+            result["setup_session"] = _begin_setup(destination, result["package_hash"])
+            result["next_step"] = "Hervat setup_session met het exacte wait_command en pythonpath. Blijf stil wachten zolang invoer of controle loopt; vraag niet om klaar. Volg daarna next_action."
         exit_code = 0
     except InstallError as exc:
         events.append(event(exc.stage, "blocked", exc.code))

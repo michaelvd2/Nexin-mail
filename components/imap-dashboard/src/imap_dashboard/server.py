@@ -473,24 +473,33 @@ def build_server(
             annotations=LOCAL_READ,
         )
         def setup_status() -> dict[str, Any]:
-            return _setup_status(runtime)
+            from nexin_mail.setup_flow import status
+            result = _setup_status(runtime)
+            result["setup_session"] = status()
+            return result
 
         @server.tool(
             title="Open secure Nexin Mail setup",
             description="Open the native masked setup flow. Passwords and OAuth browser data never enter Codex, tool arguments, environment variables, or files.",
             annotations=SETUP_ACTION,
         )
-        def open_setup() -> dict[str, Any]:
-            try:
-                if not launch_setup():
-                    return {"result": "cancelled", **_setup_status(runtime)}
-            except SetupError as exc:
-                return {"result": "setup_failed", **exc.report}
-            runtime.reset()
-            result = {"result": "configured", **_setup_status(runtime)}
-            # A setup run replaces the lazy runtime. Give the already-open UI
-            # a fresh correlation session; it is not an approval credential.
-            if result.get("configured"):
+        def open_setup(new_attempt: bool = False) -> dict[str, Any]:
+            from nexin_mail.setup_flow import start
+            return start(new_attempt=new_attempt)
+
+        @server.tool(
+            title="Wait for private Nexin Mail setup",
+            description="Resume the same setup session and wait up to 50 seconds without reopening the form. Repeat the same wait while pending; never ask the user to type done.",
+            annotations=LOCAL_READ,
+        )
+        async def wait_setup(session_id: str, timeout_seconds: float = 50) -> dict[str, Any]:
+            import asyncio
+            from nexin_mail.setup_flow import wait
+            result = await asyncio.to_thread(wait, session_id, timeout_seconds)
+            if result.get("status") == "ready":
+                runtime.reset()
+                result.update(_setup_status(runtime))
+                result["result"] = "configured"
                 result["ui_session_id"] = runtime.new_ui_session()
             return result
 

@@ -2,13 +2,15 @@
 # Native macOS bootstrap. No system Python, package manager, or privilege change.
 set -eu
 repository=''
-release='v0.2.0-beta.2'
+release='v0.2.0-beta.3'
 codex=''
 prepare_only=0
+skip_setup=0
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --repository) repository=$2; shift 2 ;;
     --codex) codex=$2; shift 2 ;;
+    --skip-setup) skip_setup=1; shift ;;
     --prepare-only) prepare_only=1; shift ;;
     *) echo 'Usage: install_from_release.sh --repository OWNER/REPO [--codex PATH] [--prepare-only]' >&2; exit 64 ;;
   esac
@@ -60,7 +62,9 @@ export PYTHONDONTWRITEBYTECODE=1
 "$runtime" -B -X utf8 -c 'import sys; from pathlib import Path; from nexin_mail.package import verify; verify(Path(sys.argv[1])); print("Package manifest verified")' "$work/package"
 if [ "$prepare_only" = 1 ]; then printf 'Verified package prepared: %s\n' "$work/package"; exit 0; fi
 export NEXIN_MAIL_CODEX="$codex"
+set --
+if [ "$skip_setup" = 1 ]; then set -- --skip-setup; fi
 if [ "$architecture" = arm64 ] && [ "$(uname -m)" != arm64 ]; then
-  exec /usr/bin/arch -arm64 /bin/sh "$work/package/install_macos.sh"
+  exec /usr/bin/arch -arm64 /bin/sh "$work/package/install_macos.sh" "$@"
 fi
-exec /bin/sh "$work/package/install_macos.sh"
+exec /bin/sh "$work/package/install_macos.sh" "$@"

@@ -2,7 +2,8 @@
 param(
     [Parameter(Mandatory = $true)][ValidatePattern('^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$')][string]$Repository,
     [string]$Codex,
-    [switch]$PrepareOnly
+    [switch]$PrepareOnly,
+    [switch]$SkipSetup
 )
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
@@ -31,7 +32,7 @@ $work = Join-Path ([IO.Path]::GetTempPath()) ('nexin-mail-' + [Guid]::NewGuid().
 New-Item -ItemType Directory -Path $work | Out-Null
 Write-Output "Preserving download and diagnostics in $work"
 $asset = 'Nexin-Mail-0.2.0-windows-x64.zip'
-$base = "https://github.com/$Repository/releases/download/v0.2.0-beta.2"
+$base = "https://github.com/$Repository/releases/download/v0.2.0-beta.3"
 Invoke-WebRequest -UseBasicParsing -Uri "$base/SHA256SUMS-windows-x64.txt" -OutFile (Join-Path $work 'checksums.txt')
 $rows = @(Get-Content -LiteralPath (Join-Path $work 'checksums.txt') | Where-Object { $_ -match ('^[a-f0-9]{64}  ' + [regex]::Escape($asset) + '$') })
 if ($rows.Count -ne 1) { throw 'Invalid release checksum.' }
@@ -63,7 +64,8 @@ try {
     & $runtime -B -X utf8 -c 'import sys; from pathlib import Path; from nexin_mail.package import verify; verify(Path(sys.argv[1]))' $package
     if ($LASTEXITCODE -ne 0) { throw 'Package manifest verification failed.' }
     if ($PrepareOnly) { Write-Output "Verified package prepared: $package"; return }
-    & $runtime -B -X utf8 -m nexin_mail.install install --package $package --codex $Codex
+    $setupOption = if ($SkipSetup) { "--skip-setup" } else { "--setup" }
+    & $runtime -B -X utf8 -m nexin_mail.install install --package $package --codex $Codex $setupOption
     if ($LASTEXITCODE -ne 0) { throw 'Installation did not pass; preserve the structured diagnostics above.' }
 } finally {
     $env:PYTHONPATH = $previousPythonPath

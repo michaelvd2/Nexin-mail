@@ -20,10 +20,18 @@ geen Python, pip of Node.
    De immutable payload blijft intact; absolute MCP-paden worden in een aparte
    lokale registratie gegenereerd. Eén plugin en één lazy server (`python -m
    nexin_mail.server`) bevatten teksttools en dashboard.
-4. Start indien nodig een nieuwe Codex-taak voor het laden van de plugin.
-   `setup_status` en `open_setup` begeleiden de persoonlijke, gemaskeerde setup.
-   Daarna volgen read-only `mail_health` en het openen van het dashboard.
-5. Sluiten van het dashboard laat tekstbediening beschikbaar. Opnieuw openen
+4. De installer start standaard de persoonlijke gemaskeerde setup en geeft een
+   `setup_session` terug. Gebruik het exacte `wait_command` met de aangegeven
+   `pythonpath`, of `wait_setup` wanneer de plugin al geladen is. Wacht stil in
+   blokken van maximaal 50 seconden op dezelfde sessie; vraag nooit om "klaar",
+   open geen tweede formulier en rond de taak niet af zolang invoer nog loopt.
+   Een onderbroken host-aanroep wordt hervat via dezelfde sessie. Annuleren stopt.
+   `--skip-setup` is alleen voor een expliciet verzochte registratie zonder setup.
+5. Na invullen controleert de sessie de read-only verbinding. Bij `ready` open je
+   het dashboard eenmaal. Een fout levert een specifieke herstelroute op;
+   herhaal geen ongewijzigde loginpoging. Alleen pluginontdekking voor het tonen
+   van het dashboard kan nog een nieuwe Codex-taak vereisen.
+6. Sluiten van het dashboard laat tekstbediening beschikbaar. Opnieuw openen
    gebeurt op verzoek. De huidige instructie opent eenmaal per mailsessie;
    automatische detectie van de sluitactie moet nog in de host worden getest.
 

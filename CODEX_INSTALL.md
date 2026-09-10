@@ -39,7 +39,7 @@ Read the source bootstrap from the same repository before running it. Derive
 `OWNER/REPO` from the user's exact GitHub repository URL or its verified origin;
 never substitute another repository. Use the repository's default-branch source
 for these bootstrap scripts, not an earlier plugin cache. The current bootstrap
-selects the explicit [v0.2.0-beta.2 release](../../releases/tag/v0.2.0-beta.2).
+selects the explicit [v0.2.0-beta.3 release](../../releases/tag/v0.2.0-beta.3).
 GitHub's `/releases/latest` excludes prereleases: use the tag endpoint or list
 including prereleases. No stable latest release does not mean no beta exists.
 
@@ -62,6 +62,9 @@ Both scripts need only built-in OS tools before the package's private Python
 runtime is available. They download the exact platform asset and its dedicated
 SHA256SUMS file over HTTPS, verify the hash and archive paths before extraction,
 then verify the package manifest and run the existing guarded installer.
+`--skip-setup` or `-SkipSetup` explicitly stops after registration. Otherwise
+installation starts the private setup session; an existing account gets a
+read-only connection check without reopening the form.
 `--prepare-only` or `-PrepareOnly` downloads and verifies without registering;
 this is a diagnostic mode, not successful installation.
 
@@ -81,13 +84,30 @@ a package for Linux, Windows ARM64, or a remote cloud host. This is an unsigned 
    before invoking its platform installer. Do not require manual extraction.
 3. Pass the exact native Codex executable path when the installer supports
    `--codex`; do not guess from a shell shim, WSL, or an unrelated process.
-4. Check the structured installer result. It proves package and registration
-   gates only. Follow with `setup_status`, then use `open_setup` only after the
-   user has authorized account setup.
-5. Run the read-only health check. Open the dashboard once when the host
-   supports it, and record visible dashboard acceptance separately from the
-   installer and mailbox checks. Start a new Codex task if plugin discovery
-   requires it.
+4. Read `setup_session` in the installer result. It includes the session ID,
+   exact installed-runtime `wait_command` argument array and `pythonpath`.
+   Invoke that command with the given PYTHONPATH through the host's yielding
+   process tool. Do not concatenate arguments into a shell string. Wait up to
+   50 seconds per call, then resume the same session while it is pending. This
+   waiting uses no model work between results. Stay active; do not ask the user
+   to type done, repeatedly announce waiting, restart setup, or finalize while
+   the form is pending. Host/tool timeout means resume the receipt, not failure.
+5. If the plugin tools are already available, `wait_setup(session_id,
+   timeout_seconds=50)` provides the same bounded wait. `setup_status` exposes
+   the saved session after host interruption. `open_setup` reuses an existing
+   session; `new_attempt=true` is only for an explicitly requested fresh attempt
+   after the previous attempt has ended and the recovery condition is met.
+6. Follow the returned `next_action`: `ready` means the read-only connection
+   check passed; call `render_mail_view` once and verify visible dashboard
+   acceptance. `cancelled` means stop. `failed` includes a typed recovery guide:
+   diagnose that cause and do not repeat an unchanged login attempt. For
+   `interrupted`, inspect the existing setup owner/window; never open a second
+   possibly live form. A persisted session cannot by itself prove the window
+   was displayed or accepted by the user.
+7. A plugin-discovery limitation does not block waiting: use the exact installed
+   runtime command from the receipt. If a fresh task is needed to render the
+   dashboard, identify that remaining host step; never rerun installation or
+   lose track of the user's active popup.
 
 If setup or registration fails, read `docs/SETUP_RECOVERY.md` and
 `docs/TROUBLESHOOTING.md`, preserve the healthy state, and repair only the

@@ -167,8 +167,7 @@ def test_setup_tool_delivers_recovery_without_checking_mail(monkeypatch):
 
 def test_setup_tool_budget_exceeds_inner_wait():
     import inspect
-    source = inspect.getsource(review.launch_setup)
-    assert "timeout=600" in source
+    assert inspect.signature(review.launch_setup).parameters["timeout"].default == 600
     root = Path(__file__).parents[1]
     manifest = json.loads((root / ".mcp.json").read_text(encoding="utf-8"))
     assert manifest["mcpServers"]["mail"]["tool_timeout_sec"] > 600

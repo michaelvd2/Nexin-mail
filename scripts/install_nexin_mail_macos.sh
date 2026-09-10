@@ -53,4 +53,4 @@ esac
 export PYTHONDONTWRITEBYTECODE=1
 export PYTHONPATH="$package_root/payload/src"
 exec "$runtime" -B -X utf8 -m nexin_mail.install install \
-  --package "$package_root" --install-root "$install_root" --codex "$codex" "$@"
+  --package "$package_root" --install-root "$install_root" --codex "$codex" --setup "$@"

@@ -1,3 +1,4 @@
+import { waitForSetup, type SetupResult } from "./setup-session";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ConfirmDialog, SendReviewDialog, SettingsDialog } from "./components/Dialogs";
 import { DraftWorkspace } from "./components/DraftWorkspace";
@@ -137,6 +138,11 @@ function demoProposal(action: string, target: MessageRef[] = []): Proposal {
 }
 
 function App() {
+  const setupWaitActive = useRef(true);
+  useEffect(() => {
+    setupWaitActive.current = true;
+    return () => { setupWaitActive.current = false; };
+  }, []);
   const [sessionId, setSessionId] = useState(isStandalone ? "standalone-preview-session" : "");
   const [accountAddress, setAccountAddress] = useState(isStandalone ? "alex@example.test" : "");
   const [profile, setProfile] = useState(isStandalone ? "operator" : "read");
@@ -335,13 +341,19 @@ function App() {
     if (isStandalone) return;
     setBusy(true);
     try {
-      const result = extractStructured<{ result?: string; configured?: boolean; ui_session_id?: string; profile?: string; from_address?: string }>(await callTool("open_setup", {}));
-      if (result.result === "cancelled") {
+      const initial = extractStructured<SetupResult>(await callTool("open_setup", { new_attempt: true }));
+      const result = await waitForSetup(initial,
+        async (sessionId) => extractStructured<SetupResult>(await callTool("wait_setup", { session_id: sessionId, timeout_seconds: 50 })),
+        () => setupWaitActive.current,
+        (status) => setStatus(status === "checking_connection" ? "Je verbinding wordt gecontroleerd…" : "Vul het beveiligde setupvenster in. Nexin Mail gaat daarna vanzelf verder."),
+      );
+      if (!setupWaitActive.current) return;
+      if (result.status === "cancelled" || result.result === "cancelled") {
         setStatus("Veilige setup is geannuleerd; er is niets gewijzigd.");
         return;
       }
       if (result.result !== "configured" || !result.ui_session_id) {
-        setStatus("De veilige setup is niet voltooid.");
+        setStatus(result.recovery?.message ?? "De veilige setup is niet voltooid. Codex kan dezelfde sessie controleren zonder een tweede venster te openen.");
         return;
       }
       await initialize({ structuredContent: result });

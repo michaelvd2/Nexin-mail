@@ -40,7 +40,7 @@ De huidige terminal kan PowerShell 7 gebruiken, terwijl een launcher Windows Pow
 
 ## Terugkoppeling en afronding
 
-Houd het lopende installerproces bij met korte begrensde polls. De klant hoeft niet zelf `klaar` te zeggen. Rapporteer een setupfout zodra het proces die teruggeeft en ga over op de passende controle; open niet blind nogmaals hetzelfde formulier.
+Gebruik voor Nexin Mail de sessie uit het installerresultaat en `wait_setup` (maximaal 50 seconden per aanroep), of het exacte runtime-wachtcommando zolang pluginontdekking nog ontbreekt. Hervat stil dezelfde sessie na een host-timeout; heropen het formulier niet en rond de taak niet af terwijl invoer nog loopt. De legacy IMAP-launcher kan nog een blokkerende procesaanroep gebruiken. De klant hoeft niet zelf `klaar` te zeggen. Rapporteer een setupfout zodra het proces die teruggeeft en ga over op de passende controle; open niet blind nogmaals hetzelfde formulier.
 
 Verifieer na setup eerst de lokale read-only doctor. Wanneer de plugin beschikbaar is, gebruik `setup_status` en `mail_health` vanuit die plugin. Is daarvoor een nieuwe taak nodig, geef dat als nog openstaande acceptatiestap aan. Houd lezen, acties met review en optioneel verzenden apart; SMTP-problemen maken een bewezen werkende IMAP-leesverbinding niet onbruikbaar. Gebruik nooit een testmail, verplaatsing of concept om de installatie te bewijzen.
 

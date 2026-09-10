@@ -25,4 +25,5 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["src", "components/imap-dashboard/src"]
 addopts = "-q"

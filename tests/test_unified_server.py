@@ -547,3 +547,19 @@ def test_mutated_commit_arguments_fail_after_native_review_of_original_binding()
         asyncio.run(server.call_tool("commit_draft", mutated))
     assert operator.commits == 0
     assert seen[0]["proposal"]["payload"]["body"] == args["body"]
+
+
+def test_setup_tools_return_and_resume_same_session(monkeypatch):
+    from nexin_mail import setup_flow
+    session_id = "a" * 32
+    monkeypatch.setattr(setup_flow, "start", lambda **kwargs: {"status": "waiting_for_input", "session_id": session_id})
+    calls = []
+    def wait(sid, seconds):
+        calls.append((sid, seconds))
+        return {"status": "cancelled", "session_id": sid, "next_action": "stop"}
+    monkeypatch.setattr(setup_flow, "wait", wait)
+    server = build_server()
+    initial = _text_payload(asyncio.run(server.call_tool("open_setup", {})))
+    final = _text_payload(asyncio.run(server.call_tool("wait_setup", {"session_id": initial["session_id"], "timeout_seconds": 50})))
+    assert final["next_action"] == "stop"
+    assert calls == [(session_id, 50)]
