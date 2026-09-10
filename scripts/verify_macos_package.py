@@ -76,7 +76,7 @@ def verify_extracted(root: Path) -> dict[str, object]:
         cwd=str(root), env=environment, check=True, capture_output=True, text=True, encoding="utf-8", timeout=120,
     )
     verifier = json.loads(check.stdout.strip().splitlines()[-1])
-    if verifier.get("status") != "pass" or verifier.get("server") != "nexin-mail" or verifier.get("tools") != 56:
+    if verifier.get("status") != "pass" or verifier.get("server") != "nexin-mail" or verifier.get("tools") != 57:
         raise ValueError(f"runtime verifier returned an unexpected result: {verifier!r}")
     probe = subprocess.run(
         [str(runtime), "-B", "-c", "import json,platform,sys,sysconfig; print(json.dumps({'version':sys.version.split()[0],'machine':platform.machine(),'executable':sys.executable,'prefix':sys.prefix,'purelib':sysconfig.get_path('purelib')}))"],

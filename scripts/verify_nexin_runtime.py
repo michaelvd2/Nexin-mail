@@ -70,7 +70,7 @@ async def _verify() -> dict[str, Any]:
 
     with tempfile.TemporaryDirectory(prefix="nexin-mail-verify-") as temporary:
         previous = os.environ.get("IMAP_PLUGIN_CONFIG")
-        os.environ["IMAP_PLUGIN_CONFIG"] = str(Path(temporary) / "missing.toml")
+        os.environ["IMAP_PLUGIN_CONFIG"] = str(Path(temporary).resolve() / "missing.toml")
         try:
             probe = build_server()
             status = await probe.call_tool("setup_status", {})
