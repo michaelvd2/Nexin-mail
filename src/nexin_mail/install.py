@@ -1082,9 +1082,9 @@ def _begin_setup(destination: Path, package_hash: str) -> dict[str, Any]:
     environment = dict(os.environ)
     environment["PYTHONPATH"] = str(active / "payload" / "src")
     environment["PYTHONDONTWRITEBYTECODE"] = "1"
-    command = [str(runtime), "-B", "-X", "utf8", "-m", "nexin_mail.setup_flow", "start"]
+    command = [str(runtime), "-P", "-B", "-X", "utf8", "-m", "nexin_mail.setup_flow", "start"]
     try:
-        completed = subprocess.run(command, env=environment, capture_output=True, text=True, encoding="utf-8", timeout=30, check=True)
+        completed = subprocess.run(command, cwd=active / "payload", env=environment, capture_output=True, text=True, encoding="utf-8", timeout=30, check=True)
         return json.loads(completed.stdout)
     except (OSError, ValueError, subprocess.SubprocessError):
         return {"status": "unconfirmed", "next_action": "inspect_setup_owner",

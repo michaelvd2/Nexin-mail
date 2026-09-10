@@ -86,6 +86,8 @@ a package for Linux, Windows ARM64, or a remote cloud host. This is an unsigned 
    `--codex`; do not guess from a shell shim, WSL, or an unrelated process.
 4. Read `setup_session` in the installer result. It includes the session ID,
    exact installed-runtime `wait_command` argument array and `pythonpath`.
+   The command includes the exact session directory, so a new task can resume
+   even if its environment differs; preserve those arguments.
    Invoke that command with the given PYTHONPATH through the host's yielding
    process tool. Do not concatenate arguments into a shell string. Wait up to
    50 seconds per call, then resume the same session while it is pending. This

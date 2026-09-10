@@ -126,7 +126,7 @@ def status(session_id: str | None = None, *, root: Path | None = None) -> dict:
 
 
 def _spawn(root: Path, session_id: str) -> None:
-    command = [sys.executable, "-B", "-X", "utf8", "-m", "nexin_mail.setup_flow", "worker", "--session-id", session_id]
+    command = [sys.executable, "-P", "-B", "-X", "utf8", "-m", "nexin_mail.setup_flow", "worker", "--session-id", session_id, "--session-root", str(root)]
     options = {"stdin": subprocess.DEVNULL, "stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL}
     if os.name == "nt":
         options["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS
@@ -220,20 +220,21 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("action", choices=("start", "status", "wait", "worker"))
     parser.add_argument("--session-id")
+    parser.add_argument("--session-root", type=Path)
     parser.add_argument("--timeout-seconds", type=float, default=50)
     parser.add_argument("--new-attempt", action="store_true")
     args = parser.parse_args()
     if args.action == "worker":
-        worker(args.session_id)
+        worker(args.session_id, root=args.session_root)
         return 0
     if args.action == "start":
-        result = start(new_attempt=args.new_attempt)
+        result = start(new_attempt=args.new_attempt, root=args.session_root)
     elif args.action == "wait":
-        result = wait(args.session_id, args.timeout_seconds)
+        result = wait(args.session_id, args.timeout_seconds, root=args.session_root)
     else:
-        result = status(args.session_id)
+        result = status(args.session_id, root=args.session_root)
     if result.get("session_id"):
-        result["wait_command"] = [sys.executable, "-B", "-X", "utf8", "-m", "nexin_mail.setup_flow", "wait", "--session-id", result["session_id"], "--timeout-seconds", "50"]
+        result["wait_command"] = [sys.executable, "-P", "-B", "-X", "utf8", "-m", "nexin_mail.setup_flow", "wait", "--session-id", result["session_id"], "--session-root", str(_root(args.session_root)), "--timeout-seconds", "50"]
         result["pythonpath"] = str(Path(__file__).resolve().parents[1])
     print(json.dumps(result))
     return 0

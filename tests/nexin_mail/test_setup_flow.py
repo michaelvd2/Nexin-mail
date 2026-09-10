@@ -120,3 +120,14 @@ def test_wait_resumes_worker_from_separate_process(session):
         if proc.poll() is None:
             proc.terminate()
             proc.wait(timeout=5)
+
+
+def test_receipt_root_survives_a_different_host_environment(session, monkeypatch):
+    root, _ = session
+    sid = flow.start()["session_id"]
+    flow.worker(sid, launch=lambda: False)
+    monkeypatch.setenv("IMAP_PLUGIN_CONFIG", str(root.parent / "other" / "config.toml"))
+    proc = subprocess.run([sys.executable, "-m", "nexin_mail.setup_flow", "wait", "--session-id", sid, "--session-root", str(root), "--timeout-seconds", "0"], capture_output=True, text=True, check=True)
+    result = json.loads(proc.stdout)
+    assert result["status"] == "cancelled"
+    assert str(root) in result["wait_command"]
