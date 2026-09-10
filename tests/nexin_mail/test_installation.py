@@ -92,11 +92,12 @@ def test_install_ignores_finder_metadata_and_preserves_runtime_mode(package, tmp
     (package / "payload/.DS_Store").write_bytes(b"Finder metadata")
     runtime = package / "payload/runtime/python/python.exe"
     runtime.chmod(0o755)
+    source_mode = stat.S_IMODE(runtime.stat().st_mode)
 
     destination = tmp_path / "install"
     result = installer.install(package, destination, Path("codex.exe"), [], runner=CodexStub())
     installed = destination / "packages" / result["package_hash"]
-    assert stat.S_IMODE((installed / "payload/runtime/python/python.exe").stat().st_mode) == 0o755
+    assert stat.S_IMODE((installed / "payload/runtime/python/python.exe").stat().st_mode) == source_mode
     assert not list(installed.rglob(".DS_Store"))
 
 

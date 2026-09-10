@@ -171,4 +171,4 @@ def test_setup_tool_budget_exceeds_inner_wait():
     assert "timeout=600" in source
     root = Path(__file__).parents[1]
     manifest = json.loads((root / ".mcp.json").read_text(encoding="utf-8"))
-    assert manifest["mcpServers"]["imap"]["tool_timeout_sec"] > 600
+    assert manifest["mcpServers"]["mail"]["tool_timeout_sec"] > 600

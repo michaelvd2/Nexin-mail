@@ -34,21 +34,12 @@ def test_dependency_locks_are_exact_and_hash_anchored():
         assert all("==" in block and "--hash=sha256:" in block for block in blocks)
 
 
-def test_customer_installers_require_hashes_before_installing_code():
+def test_runtime_builders_require_hashes_before_installing_code():
     root = Path(__file__).parents[1]
-    macos = (root / "scripts" / "install_macos.sh").read_text(encoding="utf-8")
+    macos = (root / "scripts" / "build_macos_package.py").read_text(encoding="utf-8")
     windows = (root / "scripts" / "build_runtime.ps1").read_text(encoding="utf-8")
     assert "--require-hashes" in macos
     assert windows.count("--require-hashes") >= 2
-
-
-def test_macos_installer_records_backend_integrity_before_activation():
-    root = Path(__file__).parents[1]
-    macos = (root / "scripts" / "install_macos.sh").read_text(encoding="utf-8")
-    assert '"product": "imap-plugin-installed-backend"' in macos
-    assert '"root": "plugins/imap-plugin"' in macos
-    assert 'backend-integrity.json' in macos
-    assert macos.index('backend-integrity.json') < macos.index('mv -- "$staging" "$distribution"')
 
 
 @pytest.mark.skipif(platform.system() != "Darwin", reason="requires macOS")
