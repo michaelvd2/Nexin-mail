@@ -44,7 +44,7 @@ GitHub's `/releases/latest` excludes prereleases: use the tag endpoint or list
 including prereleases. No stable latest release does not mean no beta exists.
 
 - **macOS:** run `/bin/sh scripts/install_from_release.sh --repository OWNER/REPO`.
-  The script detects Apple Silicon (including Rosetta) or Intel and finds the
+  The script detects Apple Silicon (including Rosetta) and finds the
   native app in `/Applications` or the user's Applications folder.
 - **Windows:** run `scripts/install_from_release.ps1 -Repository OWNER/REPO`
   from the authorized native PowerShell environment. It detects x64 and looks
@@ -67,9 +67,11 @@ this is a diagnostic mode, not successful installation.
 
 The release asset names are `Nexin-Mail-0.2.0-PLATFORM.zip`,
 `SHA256SUMS-PLATFORM.txt`, and `build-provenance-PLATFORM.json`, where PLATFORM is
-`windows-x64`, `macos-arm64`, or `macos-x86_64`. Preserve downloaded evidence on
-failure. Never select a source ZIP or improvise a package for Linux, Windows
-ARM64, or a remote cloud host. This is an unsigned testing beta.
+`windows-x64` or `macos-arm64`. Preserve downloaded evidence on
+failure. Intel Mac is explicitly unsupported because the pinned cryptography
+runtime has no compatible prebuilt package; do not downgrade it or improvise
+a source build on the customer machine. Never select a source ZIP or improvise
+a package for Linux, Windows ARM64, or a remote cloud host. This is an unsigned testing beta.
 
 ## Platform route
 

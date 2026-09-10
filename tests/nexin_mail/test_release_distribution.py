@@ -5,7 +5,6 @@ import zipfile
 
 import pytest
 
-from scripts.build_macos_package import runtime_spec
 from scripts.prepare_release_assets import prepare
 
 
@@ -19,7 +18,7 @@ def package(path: Path, *, tampered=False):
         archive.writestr("package-manifest.json", json.dumps(manifest))
 
 
-@pytest.mark.parametrize("platform", ["windows-x64", "macos-arm64", "macos-x86_64"])
+@pytest.mark.parametrize("platform", ["windows-x64", "macos-arm64"])
 def test_preserved_release_binds_bytes_and_source_without_local_paths(tmp_path, platform):
     archive = tmp_path / "candidate.zip"
     package(archive)
@@ -39,11 +38,7 @@ def test_corrupt_package_is_not_preserved_for_release(tmp_path):
     assert not (tmp_path / "release").exists()
 
 
-def test_mac_architectures_have_distinct_pinned_native_runtimes():
-    arm = runtime_spec("arm64")
-    intel = runtime_spec("x86_64")
-    assert "aarch64-apple-darwin" in arm[0]
-    assert "x86_64-apple-darwin" in intel[0]
-    assert arm[2] != intel[2]
+def test_unavailable_architecture_is_not_published(tmp_path):
     with pytest.raises(ValueError, match="unsupported"):
-        runtime_spec("unknown")
+        prepare(tmp_path / "unused.zip", "macos-x86_64", tmp_path / "release", "a" * 40, "https://example.test/build/1")
+    assert not (tmp_path / "release").exists()

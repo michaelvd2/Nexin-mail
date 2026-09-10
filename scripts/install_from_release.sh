@@ -18,7 +18,7 @@ printf '%s\n' "$repository" | /usr/bin/grep -Eq '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]
 architecture=$(uname -m)
 # Detect Apple Silicon even when the calling shell runs under Rosetta.
 if [ "$(/usr/sbin/sysctl -n hw.optional.arm64 2>/dev/null || true)" = 1 ]; then architecture=arm64; fi
-case "$architecture" in arm64|x86_64) ;; *) echo 'Unsupported macOS architecture.' >&2; exit 64 ;; esac
+case "$architecture" in arm64) ;; x86_64) echo 'Intel Mac package unavailable: the pinned cryptography runtime has no compatible prebuilt package. Nothing installed.' >&2; exit 64 ;; *) echo 'Unsupported macOS architecture.' >&2; exit 64 ;; esac
 if [ "$prepare_only" = 0 ] && [ -z "$codex" ]; then
   for candidate in /Applications/Codex.app/Contents/Resources/codex "$HOME/Applications/Codex.app/Contents/Resources/codex"; do
     if [ -x "$candidate" ]; then

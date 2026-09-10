@@ -8,7 +8,7 @@ import shutil
 
 from scripts.release_check import inspect_archive
 
-PLATFORMS = ("windows-x64", "macos-arm64", "macos-x86_64")
+PLATFORMS = ("windows-x64", "macos-arm64")
 
 
 def prepare(archive: Path, platform: str, output: Path, commit: str, build_url: str) -> dict:
