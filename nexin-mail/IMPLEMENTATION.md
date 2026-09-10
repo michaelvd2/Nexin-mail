@@ -45,7 +45,7 @@ objectvorm en kopieren verloor uitvoerrechten. De correcties behouden de control
 op links, gewijzigde bestanden en onbekende registraties. Gerichte regressietests,
 twee pakketrelocaties en de protocol-/onboardingcontroles zijn geslaagd.
 
-De huidige lokaal geverifieerde bundel is `20260910-host-test/r2/nexin-mail-0.2.zip`
+De voor de eerste registratie gebruikte bundel is `20260910-host-test/r2/nexin-mail-0.2.zip`
 onder de lokale artefactmap, 48541564 bytes, SHA-256
 `115f906f225b4040de9779904cfe942cbb79026b9226a5ba2cd7adea8ddad9bb`.
 Het manifest bevat 2456 bestanden met SHA-256
@@ -65,3 +65,28 @@ heeft de nieuwe plugintools nog niet geladen; zichtbare dashboardacceptatie,
 echte accountsetup, providerlogin en mailboxacties zijn nog niet bewezen. De
 Windows-, signing- en klantacceptatiegrenzen blijven open. Lokale pakketten,
 diagnostiek en accountgegevens maken geen deel uit van de bronrepository.
+
+## Actuele lokale testversie en platformcorrecties
+
+De volledige lokale backendset telt nu 257 geslaagde tests. Windows gebruikt een
+afzonderlijk gemarkeerde, hash-locked pywin32-pin. De native review weigert te
+grote verzoeken voor iedere processtart; dit is voor Windows en macOS getest.
+Testfixtures lezen UTF-8-registratie expliciet en vergelijken de bestandsmodus
+die het betreffende platform ondersteunt.
+
+De actuele macOS-testbundel is `20260910-host-test/r3/nexin-mail-0.2.zip`,
+48541473 bytes, SHA-256
+`0016e4b99c1e3c0e543f6dad9570a2ede780e50a27a47cec2c0a44cc8fe4929e`.
+Het manifest bevat 2456 bestanden met SHA-256
+`56a316422aeecde687e57a5b3a8de9edb85559b27c1600e4d6855d4db9f604f5`.
+Twee relocaties, de eigen runtime en onboarding zijn gecontroleerd. De lokale
+update en onafhankelijke plugin-readback slagen. De geregistreerde runtime
+gebruikt deze manifestversie en de native-reviewbron is byte-identiek aan de
+gepubliceerde correctie. De geinstalleerde protocolproef levert opnieuw 56 tools
+en de dashboardresource; echte mailbox- en zichtbare UI-acceptatie blijven open.
+
+GitHub heeft de platformtests op zowel Windows als macOS uitgevoerd. De echte
+Windows-runtime en het complete pakket zijn ook gebouwd en geimporteerd. De
+CI bouwt buiten de bronmap en gebruikt voor releasecontrole het archiefpad uit
+het bouwresultaat. Een geslaagde runnerbouw bewijst geen interactieve
+klantinstallatie, providerlogin, signing of zichtbare dashboardacceptatie.
