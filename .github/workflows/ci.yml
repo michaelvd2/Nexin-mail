@@ -48,10 +48,10 @@ jobs:
         if: runner.os == 'Windows'
         run: >-
           python -m nexin_mail.build --source . --runtime runtime/python
-          --output dist/nexin-mail-windows-0.2.0
+          --output "${{ runner.temp }}/nexin-mail-windows-0.2.0"
       - name: Validate local release metadata on Windows
         if: runner.os == 'Windows'
-        run: python scripts/release_check.py dist/nexin-mail-windows-0.2.0.zip
+        run: python scripts/release_check.py "${{ runner.temp }}/nexin-mail-windows-0.2.0.zip"
       - name: Run installation harness readiness checks on Windows
         if: runner.os == 'Windows'
         shell: pwsh
