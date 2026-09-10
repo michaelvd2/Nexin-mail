@@ -1,10 +1,9 @@
-"""Build a real, relocatable Nexin Mail package for macOS arm64.
+"""Build a real, relocatable Nexin Mail package for macOS arm64 or x86_64.
 
 The runtime is downloaded from the pinned python-build-standalone release and
 is materialized without symlinks before the package builder sees it.  The
 package therefore remains independent of Homebrew, a developer venv, and the
-build machine's absolute paths.  This script intentionally builds only the
-host's arm64 target; an Intel artifact needs its own upstream asset and proof.
+build machine's absolute paths.  Each artifact is built and verified on a host of the same architecture.
 """
 from __future__ import annotations
 
@@ -38,6 +37,19 @@ PBA_SHA256 = "3ee3ee547cedfeb7c2b16b2b7156039f7b470bb8f857e226fd3d2eb11db83c76"
 PBA_RELEASE_URL = f"https://github.com/astral-sh/python-build-standalone/releases/tag/{PBA_RELEASE}"
 PBA_LICENSE_URL = "https://github.com/astral-sh/python-build-standalone/blob/main/LICENSE"
 PYTHON_LICENSE_URL = "https://github.com/astral-sh/python-build-standalone/blob/main/LICENSE.cpython.txt"
+
+
+def runtime_spec(architecture: str) -> tuple[str, str, str]:
+    targets = {
+        "arm64": ("aarch64-apple-darwin", "3ee3ee547cedfeb7c2b16b2b7156039f7b470bb8f857e226fd3d2eb11db83c76"),
+        "x86_64": ("x86_64-apple-darwin", "2e31b23f3f1319f707d0e620b48847a0046577541d357276821f9f1b5492e0ba"),
+    }
+    if architecture not in targets:
+        raise ValueError("unsupported macOS runtime architecture")
+    target, checksum = targets[architecture]
+    archive = f"cpython-{PYTHON_VERSION}+{PBA_RELEASE}-{target}-install_only.tar.gz"
+    url = f"https://github.com/astral-sh/python-build-standalone/releases/download/{PBA_RELEASE}/{archive.replace('+', '%2B')}"
+    return archive, url, checksum
 
 
 def sha256(path: Path) -> str:
@@ -180,7 +192,8 @@ def _assert_plain_tree(root: Path) -> None:
             raise ValueError(f"runtime path is not a regular file or directory: {item}")
 
 
-def ensure_upstream_archive(artifact_root: Path) -> Path:
+def ensure_upstream_archive(artifact_root: Path, architecture: str = "arm64") -> Path:
+    PBA_ARCHIVE, PBA_URL, PBA_SHA256 = runtime_spec(architecture)
     checksums = artifact_root / "SHA256SUMS"
     if checksums.exists():
         if not checksums.is_file() or checksums.is_symlink():
@@ -276,12 +289,14 @@ def install_locked_dependencies(runtime_root: Path, source_root: Path) -> dict[s
 
 
 def build(source_root: Path, artifact_root: Path) -> dict[str, object]:
-    if sys.platform != "darwin" or platform_machine() != "arm64":
-        raise RuntimeError("this route requires a macOS arm64 build host")
+    architecture = platform_machine()
+    if sys.platform != "darwin" or architecture not in {"arm64", "x86_64"}:
+        raise RuntimeError("this route requires a native supported macOS build host")
+    PBA_ARCHIVE, PBA_URL, PBA_SHA256 = runtime_spec(architecture)
     source_root = source_root.resolve(strict=True)
     artifact_root = artifact_root.resolve(strict=True)
-    archive = ensure_upstream_archive(artifact_root)
-    extracted = artifact_root / "runtime-macos-arm64"
+    archive = ensure_upstream_archive(artifact_root, architecture)
+    extracted = artifact_root / f"runtime-macos-{architecture}"
     safe_extract(archive, extracted)
     runtime_root = extracted / "python"
     runtime = runtime_root / "bin" / "python3.12"
@@ -289,12 +304,12 @@ def build(source_root: Path, artifact_root: Path) -> dict[str, object]:
         raise ValueError("upstream runtime executable is missing")
     probe = _run(runtime, ["-B", "-c", "import platform,sys; print(sys.version.split()[0]); print(platform.machine())"])
     lines = probe.stdout.strip().splitlines()
-    if lines != [PYTHON_VERSION, "arm64"]:
+    if lines != [PYTHON_VERSION, architecture]:
         raise ValueError(f"unexpected upstream runtime identity: {lines!r}")
     dependency_versions = install_locked_dependencies(runtime_root, source_root)
     marker = runtime_root / ".nexin-mail-platform"
-    marker.write_text("macos-arm64\n", encoding="utf-8")
-    package_root = artifact_root / f"nexin-mail-{PRODUCT_VERSION}-macos-arm64"
+    marker.write_text(f"macos-{architecture}\n", encoding="utf-8")
+    package_root = artifact_root / f"nexin-mail-{PRODUCT_VERSION}-macos-{architecture}"
     if package_root.exists():
         raise ValueError("package output already exists; artifacts are immutable")
     command = [
@@ -312,9 +327,9 @@ def build(source_root: Path, artifact_root: Path) -> dict[str, object]:
         "schema": 1,
         "product": "nexin-mail",
         "package_version": PRODUCT_VERSION,
-        "target": "macos-arm64",
+        "target": f"macos-{architecture}",
         "python_version": PYTHON_VERSION,
-        "python_architecture": "arm64",
+        "python_architecture": architecture,
         "upstream": {
             "project": "astral-sh/python-build-standalone",
             "release": PBA_RELEASE,

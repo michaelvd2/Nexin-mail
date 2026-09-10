@@ -19,19 +19,21 @@ the package does not read mail, send mail, or create credentials. Mail content
 requested for Codex analysis can enter the host or model service; local viewing
 does not imply that all analysis is local.
 
-## Download the Windows beta
+## Install on your computer
 
-Download [Nexin Mail 0.2.0 for Windows x64](../../releases/download/v0.2.0-beta.1/Nexin-Mail-0.2.0-windows-x64.zip)
-from the [beta release](../../releases/tag/v0.2.0-beta.1).
-This complete package includes its private Python runtime and the dashboard.
-Check the ZIP against `SHA256SUMS.txt` on that release, extract it to a new
-folder, then run `install.cmd` with the native Codex desktop app installed.
-You do not need to install Python separately.
+Give Codex this repository link and say **"Install Nexin Mail on this computer."**
+Codex follows [CODEX_INSTALL.md](CODEX_INSTALL.md), detects the operating system
+and architecture, downloads and verifies the matching complete package, and
+registers it with the local native Codex app. You do not need to choose a ZIP,
+install Python, or run commands yourself. Enter account credentials only in the
+private native setup window when you are ready to connect your mailbox.
 
-This is an unsigned testing beta. Installation on your Windows computer and
-visible dashboard behavior still need to be checked. The automatically generated
-GitHub **Source code** downloads are not installation packages. This release
-provides a Windows x64 package; do not use it on macOS or Windows ARM64.
+The [cross-platform beta release](../../releases/tag/v0.2.0-beta.2) provides
+Windows x64, Apple Silicon Mac, and Intel Mac packages with their own checksums
+and build provenance. This is an unsigned testing beta. Native OS prompts and
+account setup can still require your input. The automatic GitHub **Source code**
+archives are not installers. Linux, Windows ARM64, and a remote ChatGPT cloud
+session are not supported installation targets for this local plugin.
 
 ## Install with Codex
 

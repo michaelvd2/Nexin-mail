@@ -1,0 +1,49 @@
+import hashlib
+import json
+from pathlib import Path
+import zipfile
+
+import pytest
+
+from scripts.build_macos_package import runtime_spec
+from scripts.prepare_release_assets import prepare
+
+
+def package(path: Path, *, tampered=False):
+    plugin = json.dumps({"name": "nexin-mail", "version": "0.2.0"}).encode()
+    manifest = {"schema": 1, "product": "nexin-mail", "version": "0.2.0", "files": [
+        {"path": "plugin.json", "bytes": len(plugin), "sha256": hashlib.sha256(plugin).hexdigest()}
+    ]}
+    with zipfile.ZipFile(path, "w") as archive:
+        archive.writestr("plugin.json", plugin + (b" " if tampered else b""))
+        archive.writestr("package-manifest.json", json.dumps(manifest))
+
+
+@pytest.mark.parametrize("platform", ["windows-x64", "macos-arm64", "macos-x86_64"])
+def test_preserved_release_binds_bytes_and_source_without_local_paths(tmp_path, platform):
+    archive = tmp_path / "candidate.zip"
+    package(archive)
+    output = tmp_path / "release"
+    result = prepare(archive, platform, output, "a" * 40, "https://example.test/build/1")
+    assert (output / result["archive"]).read_bytes() == archive.read_bytes()
+    assert result["sha256"] == hashlib.sha256(archive.read_bytes()).hexdigest()
+    assert str(tmp_path) not in json.dumps(result)
+    assert (output / f"SHA256SUMS-{platform}.txt").read_text().strip() == f'{result["sha256"]}  {result["archive"]}'
+
+
+def test_corrupt_package_is_not_preserved_for_release(tmp_path):
+    archive = tmp_path / "candidate.zip"
+    package(archive, tampered=True)
+    with pytest.raises(ValueError, match="hash mismatch"):
+        prepare(archive, "windows-x64", tmp_path / "release", "a" * 40, "https://example.test/build/1")
+    assert not (tmp_path / "release").exists()
+
+
+def test_mac_architectures_have_distinct_pinned_native_runtimes():
+    arm = runtime_spec("arm64")
+    intel = runtime_spec("x86_64")
+    assert "aarch64-apple-darwin" in arm[0]
+    assert "x86_64-apple-darwin" in intel[0]
+    assert arm[2] != intel[2]
+    with pytest.raises(ValueError, match="unsupported"):
+        runtime_spec("unknown")

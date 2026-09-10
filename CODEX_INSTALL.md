@@ -28,28 +28,55 @@ derived state outside the immutable package manifest.
 - Preserve verified downloads, existing settings, credentials, backups, and
   unrelated marketplace or registry entries when a step fails.
 
-## Release discovery
+## Automatic installation owned by Codex
 
-For Windows x64, use the explicitly published
-[v0.2.0-beta.1 release](../../releases/tag/v0.2.0-beta.1):
-`Nexin-Mail-0.2.0-windows-x64.zip`, `SHA256SUMS.txt`, and
-`build-provenance.json`. Verify that the archive name and SHA256 agree with both
-metadata files before extraction. This is an unsigned testing beta.
+The user supplies the repository link and installation consent. Codex owns
+platform detection, package selection, checksum verification, extraction,
+native executable discovery, registration, and reading the result. Do not hand
+those technical steps back to the user as a ZIP-and-command checklist.
 
-The release is a **prerelease**: GitHub's `/releases/latest` endpoint may return
-404 even when it exists. Query `/releases/tags/v0.2.0-beta.1` or list releases
-including prereleases. Never interpret a missing stable latest release as
-proof that no installable beta exists. Do not select the automatic source ZIP
-or tarball. This release only supplies Windows x64; a macOS package must be
-verified separately before installation.
+Read the source bootstrap from the same repository before running it. Derive
+`OWNER/REPO` from the user's exact GitHub repository URL or its verified origin;
+never substitute another repository. Use the repository's default-branch source
+for these bootstrap scripts, not an earlier plugin cache. The current bootstrap
+selects the explicit [v0.2.0-beta.2 release](../../releases/tag/v0.2.0-beta.2).
+GitHub's `/releases/latest` excludes prereleases: use the tag endpoint or list
+including prereleases. No stable latest release does not mean no beta exists.
+
+- **macOS:** run `/bin/sh scripts/install_from_release.sh --repository OWNER/REPO`.
+  The script detects Apple Silicon (including Rosetta) or Intel and finds the
+  native app in `/Applications` or the user's Applications folder.
+- **Windows:** run `scripts/install_from_release.ps1 -Repository OWNER/REPO`
+  from the authorized native PowerShell environment. It detects x64 and looks
+  for the native executable on PATH and in installed Codex app packages.
+- If discovery is missing or ambiguous, Codex inspects the actual installed app
+  location and passes `--codex PATH` (macOS) or `-Codex PATH` (Windows). Do not
+  ask the user to find executable paths. Do not choose a Node shim, WSL binary,
+  another app, or an unrelated process. If no native app is installed, explain
+  that concrete prerequisite.
+- Respect native execution policy. Do not use ExecutionPolicy Bypass, remove
+  download marks, or disable OS protections. If policy prevents execution,
+  report its exact reason and retain the verified package for an allowed route.
+
+Both scripts need only built-in OS tools before the package's private Python
+runtime is available. They download the exact platform asset and its dedicated
+SHA256SUMS file over HTTPS, verify the hash and archive paths before extraction,
+then verify the package manifest and run the existing guarded installer.
+`--prepare-only` or `-PrepareOnly` downloads and verifies without registering;
+this is a diagnostic mode, not successful installation.
+
+The release asset names are `Nexin-Mail-0.2.0-PLATFORM.zip`,
+`SHA256SUMS-PLATFORM.txt`, and `build-provenance-PLATFORM.json`, where PLATFORM is
+`windows-x64`, `macos-arm64`, or `macos-x86_64`. Preserve downloaded evidence on
+failure. Never select a source ZIP or improvise a package for Linux, Windows
+ARM64, or a remote cloud host. This is an unsigned testing beta.
 
 ## Platform route
 
 1. Confirm the operating system and architecture. Supported customer routes are
    Windows 10/11 x64 and macOS 13 or newer.
-2. Verify the release identity and SHA256 before extraction. Extract to a new
-   private directory and run the package's platform installer:
-   `install.cmd` on Windows or `install_macos.sh` on macOS.
+2. Run the automatic route above. It selects and verifies the complete package
+   before invoking its platform installer. Do not require manual extraction.
 3. Pass the exact native Codex executable path when the installer supports
    `--codex`; do not guess from a shell shim, WSL, or an unrelated process.
 4. Check the structured installer result. It proves package and registration

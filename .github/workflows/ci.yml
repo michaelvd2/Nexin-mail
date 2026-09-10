@@ -12,7 +12,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, macos-latest]
+        include:
+          - os: windows-latest
+            platform: windows-x64
+          - os: macos-15
+            platform: macos-arm64
+          - os: macos-15-intel
+            platform: macos-x86_64
     runs-on: ${{ matrix.os }}
     env:
       IMAP_PLUGIN_TEST_MODE: "1"
@@ -39,7 +45,7 @@ jobs:
         run: python scripts/validate_structure.py
       - name: Validate macOS shell entrypoints
         if: runner.os == 'macOS'
-        run: sh -n scripts/install_macos.sh scripts/uninstall_macos.sh scripts/install_nexin_mail_macos.sh scripts/uninstall_nexin_mail_macos.sh scripts/launch_macos.sh scripts/setup_macos.sh scripts/doctor_macos.sh nexin-mail/install_macos.sh nexin-mail/uninstall_macos.sh
+        run: sh -n scripts/install_macos.sh scripts/uninstall_macos.sh scripts/install_nexin_mail_macos.sh scripts/uninstall_nexin_mail_macos.sh scripts/launch_macos.sh scripts/setup_macos.sh scripts/doctor_macos.sh nexin-mail/install_macos.sh nexin-mail/uninstall_macos.sh scripts/install_from_release.sh
       - name: Build the self-contained Windows runtime
         if: runner.os == 'Windows'
         shell: pwsh
@@ -61,7 +67,7 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $files = @('scripts/windows_policy_harness.ps1', 'scripts/windows_credential_harness.ps1')
+          $files = @('scripts/windows_policy_harness.ps1', 'scripts/windows_credential_harness.ps1', 'scripts/install_from_release.ps1')
           foreach ($file in $files) {
             $tokens = $null
             $errors = $null
@@ -71,33 +77,29 @@ jobs:
           python scripts/native_install_harness.py
           python scripts/loopback_imaps_harness.py --bind
           python scripts/windows_credential_harness.py
-      - name: Prepare Windows release assets
-        if: runner.os == 'Windows'
-        shell: pwsh
+      - name: Build and relocate the native macOS package
+        if: runner.os == 'macOS'
+        shell: bash
         run: |
-          $ErrorActionPreference = 'Stop'
-          $assets = Join-Path '${{ runner.temp }}' 'nexin-mail-release'
-          New-Item -ItemType Directory -Path $assets | Out-Null
-          $name = 'Nexin-Mail-0.2.0-windows-x64.zip'
-          Copy-Item -LiteralPath $env:NEXIN_MAIL_ARCHIVE -Destination (Join-Path $assets $name)
-          $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $assets $name)).Hash.ToLowerInvariant()
-          "$hash  $name" | Set-Content -LiteralPath (Join-Path $assets 'SHA256SUMS.txt') -Encoding ascii
-          @{
-            product = 'nexin-mail'
-            version = '0.2.0'
-            platform = 'windows-x64'
-            source_commit = '${{ github.sha }}'
-            build_url = '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}'
-            archive = $name
-            sha256 = $hash
-            signing = 'not_attested'
-            windows_customer_acceptance = 'not_checked'
-          } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $assets 'build-provenance.json') -Encoding utf8
-      - name: Preserve verified Windows release assets
-        if: runner.os == 'Windows'
+          set -euo pipefail
+          mkdir "${{ runner.temp }}/macos-build"
+          python scripts/build_macos_package.py --source . --artifact-root "${{ runner.temp }}/macos-build" > "${{ runner.temp }}/macos-result.json"
+          archive=$(python -c 'import json,sys; print(json.load(open(sys.argv[1]))["package_archive"]["path"])' "${{ runner.temp }}/macos-result.json")
+          python scripts/verify_macos_package.py "$archive" --extract-root "${{ runner.temp }}/macos-relocated"
+          echo "NEXIN_MAIL_ARCHIVE=$archive" >> "$GITHUB_ENV"
+      - name: Preserve release metadata
+        shell: bash
+        run: >-
+          python -m scripts.prepare_release_assets
+          --archive "$NEXIN_MAIL_ARCHIVE"
+          --platform "${{ matrix.platform }}"
+          --output "${{ runner.temp }}/nexin-mail-release"
+          --commit "${{ github.sha }}"
+          --build-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+      - name: Upload verified platform release assets
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: nexin-mail-windows-x64
+          name: nexin-mail-${{ matrix.platform }}
           path: ${{ runner.temp }}/nexin-mail-release/*
           if-no-files-found: error
           retention-days: 30

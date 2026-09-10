@@ -38,7 +38,7 @@ if [ ! -f "$runtime_platform" ]; then
 fi
 platform_id=$(cat "$runtime_platform")
 case "$(uname -s):$(uname -m):$platform_id" in
-  Darwin:arm64:macos-arm64) ;;
+  Darwin:arm64:macos-arm64|Darwin:x86_64:macos-x86_64) ;;
   *)
     echo "Nexin Mail: dit pakket is niet gebouwd voor deze macOS-architectuur; er is niets gewijzigd." >&2
     exit 70

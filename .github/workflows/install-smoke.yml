@@ -1,0 +1,21 @@
+name: Verify published installer
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  prepare:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-15, macos-15-intel]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Download and verify on macOS without system Python
+        if: runner.os == 'macOS'
+        run: /bin/sh scripts/install_from_release.sh --repository '${{ github.repository }}' --prepare-only
+      - name: Download and verify on Windows without system Python
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./scripts/install_from_release.ps1 -Repository '${{ github.repository }}' -PrepareOnly
