@@ -71,3 +71,33 @@ jobs:
           python scripts/native_install_harness.py
           python scripts/loopback_imaps_harness.py --bind
           python scripts/windows_credential_harness.py
+      - name: Prepare Windows release assets
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $assets = Join-Path '${{ runner.temp }}' 'nexin-mail-release'
+          New-Item -ItemType Directory -Path $assets | Out-Null
+          $name = 'Nexin-Mail-0.2.0-windows-x64.zip'
+          Copy-Item -LiteralPath $env:NEXIN_MAIL_ARCHIVE -Destination (Join-Path $assets $name)
+          $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $assets $name)).Hash.ToLowerInvariant()
+          "$hash  $name" | Set-Content -LiteralPath (Join-Path $assets 'SHA256SUMS.txt') -Encoding ascii
+          @{
+            product = 'nexin-mail'
+            version = '0.2.0'
+            platform = 'windows-x64'
+            source_commit = '${{ github.sha }}'
+            build_url = '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}'
+            archive = $name
+            sha256 = $hash
+            signing = 'not_attested'
+            windows_customer_acceptance = 'not_checked'
+          } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $assets 'build-provenance.json') -Encoding utf8
+      - name: Preserve verified Windows release assets
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: nexin-mail-windows-x64
+          path: ${{ runner.temp }}/nexin-mail-release/*
+          if-no-files-found: error
+          retention-days: 30

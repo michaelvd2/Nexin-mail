@@ -28,6 +28,21 @@ derived state outside the immutable package manifest.
 - Preserve verified downloads, existing settings, credentials, backups, and
   unrelated marketplace or registry entries when a step fails.
 
+## Release discovery
+
+For Windows x64, use the explicitly published
+[v0.2.0-beta.1 release](../../releases/tag/v0.2.0-beta.1):
+`Nexin-Mail-0.2.0-windows-x64.zip`, `SHA256SUMS.txt`, and
+`build-provenance.json`. Verify that the archive name and SHA256 agree with both
+metadata files before extraction. This is an unsigned testing beta.
+
+The release is a **prerelease**: GitHub's `/releases/latest` endpoint may return
+404 even when it exists. Query `/releases/tags/v0.2.0-beta.1` or list releases
+including prereleases. Never interpret a missing stable latest release as
+proof that no installable beta exists. Do not select the automatic source ZIP
+or tarball. This release only supplies Windows x64; a macOS package must be
+verified separately before installation.
+
 ## Platform route
 
 1. Confirm the operating system and architecture. Supported customer routes are

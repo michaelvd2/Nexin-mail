@@ -19,6 +19,20 @@ the package does not read mail, send mail, or create credentials. Mail content
 requested for Codex analysis can enter the host or model service; local viewing
 does not imply that all analysis is local.
 
+## Download the Windows beta
+
+Download [Nexin Mail 0.2.0 for Windows x64](../../releases/download/v0.2.0-beta.1/Nexin-Mail-0.2.0-windows-x64.zip)
+from the [beta release](../../releases/tag/v0.2.0-beta.1).
+This complete package includes its private Python runtime and the dashboard.
+Check the ZIP against `SHA256SUMS.txt` on that release, extract it to a new
+folder, then run `install.cmd` with the native Codex desktop app installed.
+You do not need to install Python separately.
+
+This is an unsigned testing beta. Installation on your Windows computer and
+visible dashboard behavior still need to be checked. The automatically generated
+GitHub **Source code** downloads are not installation packages. This release
+provides a Windows x64 package; do not use it on macOS or Windows ARM64.
+
 ## Install with Codex
 
 If you share only this repository URL, Codex should ask in Dutch:
