@@ -21,6 +21,7 @@ from .config import AccountConfig, Settings
 from .contracts import ContextBundle, ContextSource, MessageRef
 from .credentials import platform_store
 from .mime import decode_value, decoded_body, decoded_text, security_signals
+from .oauth import OAuthError, imap_xoauth2_authenticator, oauth_provider_for
 from .trace import SafeTrace, hash_folder
 
 
@@ -351,11 +352,22 @@ class MailBridge:
         client_factory: Callable[..., Any] | None = None,
         secret_reader: Callable[[str], str] | None = None,
         trace: SafeTrace | None = None,
+        oauth_token_provider: Any | None = None,
     ) -> None:
         self.settings = settings
         self.profile = "operator" if profile in {"write", "operator"} else "read"
         self.client_factory = client_factory
-        self.secret_reader = secret_reader or platform_store().read_secret
+        if secret_reader is not None:
+            self.secret_reader = secret_reader
+        elif settings.microsoft_oauth:
+            self.secret_reader = lambda _target: (_ for _ in ()).throw(
+                MailAuthenticationError("Microsoft authentication is configured")
+            )
+        else:
+            self.secret_reader = platform_store().read_secret
+        self.oauth_token_provider = oauth_token_provider
+        if self.oauth_token_provider is None and settings.microsoft_oauth:
+            self.oauth_token_provider = oauth_provider_for(settings)
         self.trace = trace or SafeTrace(self.profile, settings.trace_max_bytes, settings.trace_files)
         self.last_successful_check: str | None = None
         self._header_cache_lock = threading.RLock()
@@ -390,22 +402,74 @@ class MailBridge:
                     raise MailTlsError("IMAP STARTTLS negotiation failed") from exc
                 if str(status).upper() != "OK":
                     raise MailTlsError("IMAP STARTTLS negotiation failed")
-            if b"LOGINDISABLED" in getattr(client, "capabilities", ()):
+            capabilities = {
+                value.decode("ascii", "replace").upper() if isinstance(value, bytes) else str(value).upper()
+                for value in getattr(client, "capabilities", ())
+            }
+            if not self.settings.microsoft_oauth and "LOGINDISABLED" in capabilities:
                 raise MailLoginDisabledError("IMAP password login is disabled")
-            try:
-                status, _ = client.login(self.settings.username, self.secret_reader(self.settings.credential_target))
-            except imaplib.IMAP4.abort:
-                raise
-            except imaplib.IMAP4.error as exc:
-                raise MailAuthenticationError("IMAP authentication failed") from exc
-            if str(status).upper() != "OK":
-                raise MailAuthenticationError("IMAP authentication failed")
+
+            if self.settings.microsoft_oauth:
+                status = self._authenticate_oauth(client, force_refresh=False)
+                if str(status).upper() != "OK":
+                    raise MailAuthenticationError("IMAP authentication failed")
+            else:
+                try:
+                    status, _ = client.login(self.settings.username, self.secret_reader(self.settings.credential_target))
+                except imaplib.IMAP4.abort:
+                    raise
+                except imaplib.IMAP4.error as exc:
+                    raise MailAuthenticationError("IMAP authentication failed") from exc
+                if str(status).upper() != "OK":
+                    raise MailAuthenticationError("IMAP authentication failed")
             yield client
         finally:
             try:
                 client.logout()
             except Exception:
                 pass
+
+    def _oauth_access_token(self, *, force_refresh: bool) -> str:
+        provider = self.oauth_token_provider
+        if provider is None:
+            raise MailAuthenticationError("Microsoft authentication is not configured")
+        try:
+            if callable(provider):
+                return provider("imap", force_refresh=force_refresh)
+            return provider.get_access_token("imap", force_refresh=force_refresh)
+        except OAuthError as exc:
+            raise MailAuthenticationError("Microsoft authentication requires local sign-in") from exc
+        except Exception as exc:
+            raise MailAuthenticationError("Microsoft authentication failed") from exc
+
+    def _authenticate_oauth(self, client: Any, *, force_refresh: bool) -> str:
+        token = self._oauth_access_token(force_refresh=force_refresh)
+        try:
+            status, _ = client.authenticate(
+                "XOAUTH2",
+                imap_xoauth2_authenticator(self.settings.username, token),
+            )
+        except imaplib.IMAP4.abort:
+            raise
+        except imaplib.IMAP4.error as exc:
+            if not force_refresh:
+                try:
+                    return self._authenticate_oauth(client, force_refresh=True)
+                except MailAuthenticationError:
+                    raise
+            raise MailAuthenticationError("IMAP authentication failed") from exc
+        except Exception as exc:
+            if not force_refresh:
+                try:
+                    return self._authenticate_oauth(client, force_refresh=True)
+                except MailAuthenticationError:
+                    raise
+            raise MailAuthenticationError("IMAP authentication failed") from exc
+        if str(status).upper() != "OK":
+            if not force_refresh:
+                return self._authenticate_oauth(client, force_refresh=True)
+            raise MailAuthenticationError("IMAP authentication failed")
+        return str(status)
 
     @staticmethod
     def _ok(result: tuple[Any, Any], operation: str) -> Any:

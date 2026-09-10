@@ -1,35 +1,68 @@
-# Security and privacy model
+# Nexin Mail security model
 
 ## Trust boundaries
 
-The plugin runs locally as a STDIO MCP server. It has no hosted mail backend, HTTP listener, telemetry, analytics, remote UI assets, cloud credential store, scheduled task, launch agent, or background mailbox poll. IMAP and optional SMTP connect only to validated DNS hostnames with the operating-system trust store and hostname verification. Supported transport modes are implicit TLS and mandatory STARTTLS; plaintext fallback is unavailable.
+Nexin Mail runs as one local STDIO MCP server: `python -m nexin_mail.server`.
+The text tools and dashboard adapter share one lazy MailBridge, MailOperator,
+state store, and native-review boundary. An unconfigured account still exposes
+setup status and a bounded onboarding dashboard; importing or listing tools
+does not open a mailbox.
 
-Every subject, body, address, header, URL, attachment name, and instruction from mail is untrusted data. Mail content cannot authorize an action or change the security policy.
+Mail subjects, bodies, addresses, headers, URLs, attachment names, and
+instructions are untrusted data. Mail cannot authorize a tool call or change a
+security policy. The native review component is a plugin boundary; it does not
+claim immunity from a compromised host desktop, automation, or malware.
 
 ## Credentials and configuration
 
-The native setup form asks only for an email address and one masked password or app password. Provider-owned standard autoconfiguration endpoints receive the email address, while Mozilla's ISP database receives only its domain. Those discovery endpoints never receive the password. The password is used in memory only to authenticate directly to candidate IMAP and SMTP servers over verified TLS, then stored in Windows Credential Manager or macOS Keychain after IMAP succeeds. It is never accepted through chat, command arguments, environment variables, logs, or configuration files. The TOML configuration contains only nonsecret connection settings and bounded feature choices.
+The native setup offers a masked password or app-password route and a Microsoft
+public-client browser OAuth route. Passwords never enter chat, command-line
+arguments, environment variables, files, traces, or model-visible output.
+Microsoft access and refresh state is opaque provider data kept in the operating
+system keystore with bounded integrity-checked generations; Nexin Mail does not
+claim that provider tokens are RAM-only. No application secret is used. Fixed
+Microsoft IMAP and SMTP endpoints, delegated scopes, account identity, and
+tenant values are validated before use. See [OAUTH.md](OAUTH.md).
 
 ## Action authorization
 
-The server enforces confirmation. A proposal binds the exact action, stable message reference, UIDVALIDITY, current flags, payload, UI session, and immutable digest. Approval handles are cryptographically random, memory-only, short-lived, and one-use. Any mismatch, expiry, replay, process restart, or server-state change invalidates approval.
+Every consequential dashboard and text action creates a proposal bound to its
+exact action, stable message reference, UIDVALIDITY, current state, payload,
+UI session, and digest. A native local security window reviews that exact
+in-process snapshot. The model receives only a non-secret proposal ID; a UI
+session or metadata field is correlation information, not human approval. The
+one-use approval handle stays in process, expires, and is invalidated by a
+replay, process restart, stale mailbox state, profile mismatch, or any payload
+change. Settings and browser-progress records use the same proposal binding.
+Read profiles cannot invoke reviewed writes.
 
-Sending requires a verified saved Drafts object and an explicit recipient-and-body review. The server creates the Message-ID, makes one SMTP submission attempt, and never automatically retries an ambiguous result.
+Sending requires a verified saved Drafts object and an explicit recipient and
+message review. Nexin Mail makes one SMTP attempt and never retries an
+ambiguous result. Unsubscribe requests likewise execute once without retry.
 
-## Deletion and restore
+## Deletion and external content
 
-Production code exposes no permanent delete or expunge operation. Trash and Junk actions require server-advertised MOVE and UIDPLUS plus verified SPECIAL-USE folders. If those capabilities are absent, the action is unavailable. Successful moves can record native-keystore-protected restore metadata when the server returns a stable destination reference.
+Permanent delete and expunge are not exposed. Trash and Junk actions require
+verified SPECIAL-USE folders and server-advertised MOVE and UIDPLUS support.
+Successful moves can record protected restore metadata when a stable destination
+reference is returned.
 
-## Attachments and remote content
+Remote images remain blocked until the exact message and destinations are
+reviewed. SVG, redirects, oversized content, and suspicious messages stay
+blocked. Attachment bytes are downloaded only for one unchanged reviewed part,
+to a bounded sanitized path, and are never opened, previewed, extracted, or
+executed. Browser unsubscribe stops on credentials, personal-data entry,
+payment, CAPTCHA, download, cross-site redirect, or ambiguity.
 
-Attachment bytes are fetched only for one unchanged reviewed IMAP part up to 25 MiB. Files receive a sanitized collision-safe name, are written only under `Downloads/IMAP Plugin`, and receive a Windows Mark of the Web or macOS quarantine marker. Windows Defender is invoked when available; macOS leaves scanning and blocking to the operating system. The plugin never opens, previews, extracts, imports, or executes the file and never describes a completed scan as proof of safety.
+## Local state and release evidence
 
-Unsubscribe endpoints are limited to validated public HTTPS destinations. RFC 8058 requests execute once without retry. Browser-only unsubscribe requires a separate visible review and stops on credentials, personal-data entry, payment, CAPTCHA, download, cross-site redirect, or ambiguity.
+Raw bodies, subjects, sender addresses, recipients, previews, URLs, and
+attachment bytes are excluded from logs and the state database except for a
+confirmed attachment file. Persistent sensitive structures use the current
+user's Windows DPAPI or macOS Keychain.
 
-## Local state
-
-Raw bodies, subjects, sender addresses, recipients, previews, URLs, and attachment bytes are never written to the plugin database or logs. The confirmed attachment destination is the sole intentional file-content exception. The SQLite state contains hashes, bounded advisory labels, configuration digests, transition metadata, and send idempotency metadata. Sensitive persistent structures use current-user Windows DPAPI or AES-GCM with a key stored in the current user's macOS Keychain.
-
-## Release gates
-
-The beta build is not a production trust claim. A production release requires code signing or notarization, package hashes, an SBOM, dependency and malware scans, clean-machine installation evidence on each claimed platform, rollback evidence, and no unresolved high-severity findings.
+Source tests establish protocol and invariant behavior. A release still needs
+code signing or notarization, package hashes, dependency and malware scans,
+clean-machine installation evidence on each claimed platform, rollback evidence,
+provider consent and policy checks, and manual read/send/dashboard acceptance.
+Those are separate gates, and this model does not make a zero-risk claim.

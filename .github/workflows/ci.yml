@@ -39,4 +39,31 @@ jobs:
         run: python scripts/validate_structure.py
       - name: Validate macOS shell entrypoints
         if: runner.os == 'macOS'
-        run: sh -n scripts/install_macos.sh scripts/uninstall_macos.sh scripts/launch_macos.sh scripts/setup_macos.sh scripts/doctor_macos.sh
+        run: sh -n scripts/install_macos.sh scripts/uninstall_macos.sh scripts/install_nexin_mail_macos.sh scripts/uninstall_nexin_mail_macos.sh scripts/launch_macos.sh scripts/setup_macos.sh scripts/doctor_macos.sh nexin-mail/install_macos.sh nexin-mail/uninstall_macos.sh
+      - name: Build the self-contained Windows runtime
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./scripts/build_runtime.ps1
+      - name: Assemble and import-check Nexin Mail on Windows
+        if: runner.os == 'Windows'
+        run: >-
+          python -m nexin_mail.build --source . --runtime runtime/python
+          --output dist/nexin-mail-windows-0.2.0
+      - name: Validate local release metadata on Windows
+        if: runner.os == 'Windows'
+        run: python scripts/release_check.py dist/nexin-mail-windows-0.2.0.zip
+      - name: Run installation harness readiness checks on Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $files = @('scripts/windows_policy_harness.ps1', 'scripts/windows_credential_harness.ps1')
+          foreach ($file in $files) {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path -LiteralPath $file), [ref]$tokens, [ref]$errors) | Out-Null
+            if ($errors.Count -gt 0) { throw "PowerShell syntax error in $file" }
+          }
+          python scripts/native_install_harness.py
+          python scripts/loopback_imaps_harness.py --bind
+          python scripts/windows_credential_harness.py

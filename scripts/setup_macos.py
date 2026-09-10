@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import json
 import os
-import tempfile
 import tkinter as tk
 
 from imap_plugin.autoconfig import AutoConfigurationError, autoconfigure
-from imap_plugin.config import AccountConfig, config_path
+from imap_plugin.config import AccountConfig
 from imap_plugin.credentials import platform_store
+from imap_plugin.enrollment import enroll_microsoft_native, write_config
+from imap_plugin.oauth import OAuthError
 
 
 def _toml_string(value: str) -> str:
@@ -17,51 +18,8 @@ def _toml_string(value: str) -> str:
 
 
 def _write_config(settings: AccountConfig) -> None:
-    values = [
-        'account_id = "default"',
-        f"username = {_toml_string(settings.username)}",
-        f"email_address = {_toml_string(settings.email_address or settings.username)}",
-        f"host = {_toml_string(settings.host)}",
-        f"port = {settings.port}",
-        f"imap_security = {_toml_string(settings.imap_security)}",
-        'credential_target = "imap-plugin/imap"',
-        'smtp_credential_target = "imap-plugin/smtp"',
-        "trusted_authserv_ids = ["
-        + ", ".join(_toml_string(value) for value in settings.trusted_authserv_ids)
-        + "]",
-        f"operator_enabled = {'true' if settings.operator_enabled else 'false'}",
-        "timeout_seconds = 15.0",
-        "max_results = 20",
-        "max_scan = 250",
-        "max_days = 31",
-        "max_message_bytes = 262144",
-        "trace_max_bytes = 262144",
-        "trace_files = 3",
-    ]
-    if settings.send_configured:
-        values.extend(
-            [
-                f"smtp_host = {_toml_string(settings.smtp_host or '')}",
-                f"smtp_port = {settings.smtp_port}",
-                f"smtp_security = {_toml_string(settings.smtp_security)}",
-                f"smtp_username = {_toml_string(settings.smtp_login)}",
-            ]
-        )
-    destination = config_path()
-    destination.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-    descriptor, temporary = tempfile.mkstemp(
-        prefix="config.", suffix=".tmp", dir=destination.parent
-    )
-    try:
-        with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as handle:
-            handle.write("\n".join(values) + "\n")
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.chmod(temporary, 0o600)
-        os.replace(temporary, destination)
-    finally:
-        if os.path.exists(temporary):
-            os.unlink(temporary)
+    # Keep this local name for platform tests and older setup callers.
+    write_config(settings)
 
 
 def _discovery_hints() -> dict[str, object] | None:
@@ -78,10 +36,12 @@ def main() -> int:
     root = tk.Tk()
     root.title("IMAP Plugin - secure setup")
     root.resizable(False, False)
-    root.geometry("560x310")
+    root.geometry("560x410")
 
     email_value = tk.StringVar()
     password_value = tk.StringVar()
+    auth_method_value = tk.StringVar(value="password")
+    smtp_value = tk.BooleanVar(value=False)
     show_value = tk.BooleanVar(value=False)
     status_value = tk.StringVar(value="")
     completed = False
@@ -99,8 +59,8 @@ def main() -> int:
     tk.Label(
         frame,
         text=(
-            "Enter your email address and password. The plugin safely finds and "
-            "checks the provider settings for you."
+            "Choose Microsoft browser sign-in or the existing password/app-password "
+            "route. Secrets stay inside the native setup process."
         ),
         justify="left",
         wraplength=500,
@@ -113,21 +73,42 @@ def main() -> int:
     email_entry = tk.Entry(frame, textvariable=email_value, width=46)
     email_entry.grid(row=2, column=1, columnspan=2, sticky="ew", pady=6)
 
-    tk.Label(frame, text="Password", anchor="w").grid(
+    tk.Label(frame, text="Sign-in method", anchor="w").grid(
         row=3, column=0, sticky="w", pady=6
     )
+    method_frame = tk.Frame(frame)
+    method_frame.grid(row=3, column=1, columnspan=2, sticky="w", pady=6)
+    tk.Radiobutton(
+        method_frame, text="Microsoft browser sign-in", variable=auth_method_value,
+        value="microsoft",
+    ).pack(side="left")
+    tk.Radiobutton(
+        method_frame, text="Password or app-password", variable=auth_method_value,
+        value="password",
+    ).pack(side="left", padx=(12, 0))
+
+    password_label = tk.Label(frame, text="Password", anchor="w")
+    password_label.grid(row=4, column=0, sticky="w", pady=6)
     password_entry = tk.Entry(frame, textvariable=password_value, show="*", width=46)
-    password_entry.grid(row=3, column=1, sticky="ew", pady=6)
+    password_entry.grid(row=4, column=1, sticky="ew", pady=6)
 
     def toggle_password() -> None:
         password_entry.configure(show="" if show_value.get() else "*")
 
-    tk.Checkbutton(
+    show_button = tk.Checkbutton(
         frame,
         text="Show",
         variable=show_value,
         command=toggle_password,
-    ).grid(row=3, column=2, sticky="w", padx=(8, 0))
+    )
+    show_button.grid(row=4, column=2, sticky="w", padx=(8, 0))
+
+    smtp_check = tk.Checkbutton(
+        frame,
+        text="Enable Microsoft SMTP sending (additional consent)",
+        variable=smtp_value,
+    )
+    smtp_check.grid(row=5, column=1, columnspan=2, sticky="w", pady=(2, 6))
 
     status = tk.Label(
         frame,
@@ -137,10 +118,29 @@ def main() -> int:
         anchor="w",
         fg="#8B1A1A",
     )
-    status.grid(row=4, column=0, columnspan=3, sticky="w", pady=(12, 8))
+    status.grid(row=6, column=0, columnspan=3, sticky="w", pady=(12, 8))
 
     buttons = tk.Frame(frame)
-    buttons.grid(row=5, column=0, columnspan=3, sticky="e", pady=(8, 0))
+    buttons.grid(row=7, column=0, columnspan=3, sticky="e", pady=(8, 0))
+
+    def update_method() -> None:
+        microsoft = auth_method_value.get() == "microsoft"
+        if microsoft:
+            password_label.grid_remove()
+            password_entry.grid_remove()
+            show_button.grid_remove()
+            smtp_check.configure(state="normal")
+            status_value.set("Microsoft opens a local browser. No password is requested here.")
+        else:
+            password_label.grid()
+            password_entry.grid()
+            show_button.grid()
+            smtp_check.configure(state="disabled")
+            smtp_value.set(False)
+            status_value.set("")
+
+    auth_method_value.trace_add("write", lambda *_: update_method())
+    update_method()
 
     def cancel() -> None:
         password_value.set("")
@@ -148,32 +148,61 @@ def main() -> int:
 
     def connect() -> None:
         nonlocal completed, report
+        email = email_value.get()
         password = password_value.get()
-        if "@" not in email_value.get() or not password:
+        microsoft = auth_method_value.get() == "microsoft"
+        if "@" not in email:
+            status_value.set("Vul een geldig e-mailadres in.")
+            return
+        if not microsoft and not password:
             status_value.set("Vul je e-mailadres en wachtwoord of app-wachtwoord in.")
             return
         connect_button.configure(state="disabled")
         status.configure(fg="#333333")
-        status_value.set("Finding your provider settings and checking the connection...")
+        status_value.set(
+            "Opening Microsoft sign-in in your browser..." if microsoft
+            else "Finding your provider settings and checking the connection..."
+        )
         root.update_idletasks()
         try:
-            result = autoconfigure(
-                email_value.get(),
-                password,
-                hints=_discovery_hints(),
-            )
-            store = platform_store()
-            store.write_secret(result.settings.credential_target, password)
-            if result.settings.send_configured:
-                store.write_secret(result.settings.smtp_credential_target, password)
-            _write_config(result.settings)
+            if microsoft:
+                def oauth_progress(event: str) -> None:
+                    status_value.set(
+                        "Opening Microsoft sign-in in your browser..."
+                        if event != "browser_sign_in_complete"
+                        else "Microsoft sign-in complete. Saving protected setup..."
+                    )
+                    root.update_idletasks()
 
-            completed = True
-            password_value.set("")
-            report = {"status": "configured", "mailbox_actions_ready": result.mailbox_actions_ready,
-                      "send_ready": result.send_ready, "smtp_diagnostics": list(result.smtp_diagnostics)}
+                enrollment = enroll_microsoft_native(
+                    progress=oauth_progress,
+                    email_address=email,
+                    include_smtp=smtp_value.get(),
+                )
+                completed = True
+                report = {"status": "configured", **enrollment.public_dict()}
+            else:
+                result = autoconfigure(
+                    email,
+                    password,
+                    hints=_discovery_hints(),
+                )
+                store = platform_store()
+                store.write_secret(result.settings.credential_target, password)
+                if result.settings.send_configured:
+                    store.write_secret(result.settings.smtp_credential_target, password)
+                _write_config(result.settings)
+
+                completed = True
+                password_value.set("")
+                report = {"status": "configured", "mailbox_actions_ready": result.mailbox_actions_ready,
+                          "send_ready": result.send_ready, "smtp_diagnostics": list(result.smtp_diagnostics)}
         except AutoConfigurationError as exc:
             report = exc.public_dict()
+        except OAuthError as exc:
+            report = {"status": "error", "error_code": exc.code, "message": exc.public_message}
+        except KeyboardInterrupt:
+            report = {"status": "error", "error_code": "oauth_cancelled", "message": "Microsoft sign-in was cancelled."}
         except Exception:
             report = {"status": "error", "error_code": "setup_failed",
                       "message": "De lokale setup is niet afgerond. Controleer gebruikerscontext, Keychain en installatiecomponenten."}

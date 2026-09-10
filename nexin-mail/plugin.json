@@ -1,0 +1,19 @@
+{
+  "name": "nexin-mail",
+  "version": "0.2.0",
+  "description": "Overzicht, antwoorden en opvolging in je bestaande mailbox, via Codex en een maildashboard.",
+  "author": {"name": "Nexin"},
+  "license": "MIT",
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "Nexin Mail",
+    "shortDescription": "Overzicht en hulp in je bestaande mailbox",
+    "longDescription": "Een maildashboard en tekstbediening via Codex, verbonden met je bestaande mailbox. Met begrensde zoekopdrachten, hulp bij antwoorden en afzonderlijke bevestiging van wijzigingen.",
+    "developerName": "Nexin",
+    "category": "Productivity",
+    "capabilities": ["Interactive", "Write"],
+    "brandColor": "#315ed8",
+    "defaultPrompt": ["Open Nexin Mail.", "Zoek in mijn mail.", "Bereid een antwoord voor zonder het te versturen."]
+  }
+}

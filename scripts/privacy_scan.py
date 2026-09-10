@@ -29,7 +29,7 @@ ALLOWED_EMAIL_ADDRESSES = {
     "noreply@github.com",
     "support@github.com",
 }
-SKIP_PARTS = {".git", ".pytest_cache", ".venv", "__pycache__", "dist", "receipts", "runtime"}
+SKIP_PARTS = {".git", ".pytest_cache", ".venv", "__pycache__", "dist", "receipts", "runtime", "node_modules"}
 TEXT_SUFFIXES = {".cmd", ".json", ".lock", ".md", ".ps1", ".py", ".sh", ".toml", ".txt", ".yml", ".yaml"}
 
 

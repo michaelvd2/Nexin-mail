@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ github.repository_owner }}/imap-plugin
+          ref: 4fdb7769a5fbd1430211a6e682b289a743611c8e
+          path: _backend
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12.10'
+          cache: pip
+          cache-dependency-path: |
+            requirements-dev.lock
+            _backend/requirements-runtime.lock
+            _backend/requirements-dev.lock
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --disable-pip-version-check --only-binary=:all: --require-hashes -r _backend/requirements-runtime.lock -r _backend/requirements-dev.lock -r requirements-dev.lock
+          python -m pip install --no-deps -e _backend -e .
+      - name: Python tests
+        env:
+          IMAP_PLUGIN_TEST_MODE: '1'
+        run: python -m pytest tests
+      - name: Privacy and structure
+        run: |
+          python scripts/privacy_scan.py .
+          python scripts/git_history_privacy_scan.py .
+          python scripts/validate_structure.py
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.0.0
+        with:
+          node-version: '24'
+      - name: Enable pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.19.0 --activate
+      - name: Frontend dependencies
+        working-directory: web
+        run: pnpm install --frozen-lockfile
+      - name: Frontend tests and production build
+        working-directory: web
+        run: |
+          pnpm test
+          pnpm build
+      - name: Recheck built artifact privacy
+        run: |
+          python scripts/privacy_scan.py .
+          python scripts/package_owner_path_scan.py src/imap_dashboard/ui/mail-app.html
+      - name: Validate macOS shell entrypoints
+        if: runner.os == 'macOS'
+        run: sh -n scripts/*.sh

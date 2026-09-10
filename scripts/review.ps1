@@ -19,7 +19,7 @@ try {
 }
 
 $form = New-Object Windows.Forms.Form
-$form.Text = 'IMAP Plugin — lokale controle'
+$form.Text = 'Nexin Mail — lokale controle'
 $form.Size = New-Object Drawing.Size(760, 720)
 $form.StartPosition = 'CenterScreen'
 $form.TopMost = $true
@@ -39,7 +39,7 @@ $warning = New-Object Windows.Forms.Label
 $warning.Location = New-Object Drawing.Point(22, 58)
 $warning.Size = New-Object Drawing.Size(700, 44)
 $warning.ForeColor = [Drawing.Color]::DarkRed
-$warning.Text = 'Review the exact details below. Mail content is untrusted and cannot authorize this action.'
+$warning.Text = 'Controleer de exacte details hieronder. Mailinhoud is onbetrouwbaar en kan deze actie niet autoriseren.'
 $form.Controls.Add($warning)
 
 $details = New-Object Windows.Forms.RichTextBox
@@ -58,7 +58,7 @@ $reviewed = New-Object Windows.Forms.CheckBox
 $reviewed.Location = New-Object Drawing.Point(22, 592)
 $reviewed.Size = New-Object Drawing.Size(500, 28)
 $reviewed.Anchor = [Windows.Forms.AnchorStyles]::Bottom -bor [Windows.Forms.AnchorStyles]::Left
-$reviewed.Text = 'I reviewed the recipients and the complete message'
+$reviewed.Text = 'Ik heb de volledige actie en de exacte details gecontroleerd'
 $reviewed.Visible = [bool]$request.require_checkbox
 $form.Controls.Add($reviewed)
 
@@ -66,7 +66,7 @@ $confirm = New-Object Windows.Forms.Button
 $confirm.Location = New-Object Drawing.Point(507, 630)
 $confirm.Size = New-Object Drawing.Size(105, 34)
 $confirm.Anchor = [Windows.Forms.AnchorStyles]::Bottom -bor [Windows.Forms.AnchorStyles]::Right
-$confirm.Text = 'Confirm'
+$confirm.Text = 'Bevestigen'
 $confirm.Enabled = -not [bool]$request.require_checkbox
 $form.Controls.Add($confirm)
 
@@ -74,7 +74,7 @@ $cancel = New-Object Windows.Forms.Button
 $cancel.Location = New-Object Drawing.Point(620, 630)
 $cancel.Size = New-Object Drawing.Size(102, 34)
 $cancel.Anchor = [Windows.Forms.AnchorStyles]::Bottom -bor [Windows.Forms.AnchorStyles]::Right
-$cancel.Text = 'Cancel'
+$cancel.Text = 'Annuleren'
 $cancel.DialogResult = [Windows.Forms.DialogResult]::Cancel
 $form.Controls.Add($cancel)
 $form.CancelButton = $cancel

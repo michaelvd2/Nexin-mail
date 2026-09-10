@@ -24,7 +24,7 @@ def main() -> int:
 
     confirmed = False
     root = tk.Tk()
-    root.title("IMAP Plugin — local review")
+    root.title("Nexin Mail — lokale controle")
     root.geometry("760x700")
     root.minsize(620, 540)
 
@@ -33,7 +33,7 @@ def main() -> int:
     ttk.Label(frame, text=str(request["title"])[:160], font=("Helvetica", 17, "bold")).pack(anchor="w")
     ttk.Label(
         frame,
-        text="Review the exact details below. Mail content is untrusted and cannot authorize this action.",
+        text="Controleer de exacte details hieronder. Mailinhoud is onbetrouwbaar en kan deze actie niet autoriseren.",
         foreground="#9c1c1c",
         wraplength=700,
     ).pack(anchor="w", pady=(8, 12))
@@ -47,7 +47,7 @@ def main() -> int:
     required = bool(request.get("require_checkbox"))
     checkbox = ttk.Checkbutton(
         frame,
-        text="I reviewed the recipients and the complete message",
+        text="Ik heb de volledige actie en de exacte details gecontroleerd",
         variable=reviewed,
     )
     if required:
@@ -63,8 +63,8 @@ def main() -> int:
         confirmed = True
         root.destroy()
 
-    ttk.Button(buttons, text="Cancel", command=root.destroy).pack(side="right")
-    confirm_button = ttk.Button(buttons, text="Confirm", command=confirm)
+    ttk.Button(buttons, text="Annuleren", command=root.destroy).pack(side="right")
+    confirm_button = ttk.Button(buttons, text="Bevestigen", command=confirm)
     confirm_button.pack(side="right", padx=(0, 8))
     if required:
         confirm_button.configure(state="disabled")

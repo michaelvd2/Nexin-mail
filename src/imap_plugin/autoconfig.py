@@ -34,7 +34,7 @@ class AutoConfigurationError(RuntimeError):
 FAILURE_MESSAGES = {
     "permission_denied": "De verbinding wordt door lokale toegangsrechten geblokkeerd. Controleer sandbox- en netwerktoestemming voordat je opnieuw inlogt; wijzig geen beveiliging automatisch.",
     "authentication_failed": "De mailserver weigert de login. Controleer je gebruikersnaam, wachtwoord of app-wachtwoord en of IMAP voor je account is ingeschakeld.",
-    "password_login_disabled": "Deze server staat IMAP-login met een wachtwoord niet toe. Controleer bij je provider of een app-wachtwoord of OAuth-inlog nodig is. Deze setup ondersteunt nog geen OAuth.",
+    "password_login_disabled": "Deze server staat IMAP-login met een wachtwoord niet toe. Controleer bij je provider of een app-wachtwoord of Microsoft-browseraanmelding nodig is; gebruik voor Microsoft de beveiligde OAuth-inlog.",
     "tls_failed": "De beveiligde verbinding met de mailserver kon niet worden bevestigd. Codex kan de officiele servernaam en certificaatinstellingen controleren.",
     "network_failed": "De mailserver is niet bereikbaar. Controleer de internetverbinding, firewall en de serverinstellingen van je provider.",
     "dns_failed": "De gevonden mailservernamen kunnen niet worden opgezocht. Codex kan de officiele serverinstellingen van je provider controleren.",

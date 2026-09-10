@@ -1,18 +1,37 @@
-# Privacy
+# Nexin Mail privacy
 
-IMAP Plugin is local-first. It has no telemetry, analytics, hosted mail service, or vendor account.
+Nexin Mail is a local-first STDIO MCP server. It has no hosted mail backend,
+telemetry, analytics, advertising SDK, or background mailbox poll. The package
+registers one entrypoint, `python -m nexin_mail.server`, with one lazy runtime
+shared by the text tools and the bundled dashboard.
 
-During setup, provider-owned standard autoconfiguration endpoints receive the email address, while Mozilla's ISP database receives only the domain. Discovery services never receive the password. Authentication uses the password only in memory and sends it directly to a candidate mail server over certificate-verified TLS.
+Native setup supports a masked password or app password and Microsoft 365 or
+Outlook.com browser sign-in through the MSAL public-client flow. Passwords and
+the opaque Microsoft token cache are stored only in Windows Credential Manager
+or macOS Keychain. No app secret is accepted. Configuration contains only
+validated, non-secret connection and feature settings. See
+[docs/OAUTH.md](docs/OAUTH.md) for the Microsoft scopes and proof boundary.
 
-After setup, the plugin sends data only to the discovered connection or an endpoint the user explicitly reviews:
+During password setup, provider-owned autoconfiguration endpoints may receive
+the email address and Mozilla's ISP database receives only its domain. Those
+services never receive the password. Microsoft sign-in handles authorization
+and tokens in the native flow; credentials and tokens do not enter chat,
+arguments, environment variables, files, traces, or model-visible results.
 
-- the configured IMAP server;
-- the optional configured SMTP server;
-- an explicitly reviewed public HTTPS unsubscribe endpoint;
-- an explicitly reviewed remote-image host.
+After setup, network access is limited to the configured IMAP and optional SMTP
+servers, or to an unsubscribe or remote-image destination that the user has
+reviewed in the native local security window. Mail content is untrusted data;
+it cannot authorize tools or change policy. Requested message content can still
+be sent to the host or model service when the user asks Codex to analyze it.
 
-Passwords stay in Windows Credential Manager or macOS Keychain. Raw mailbox content is processed in memory and is not written to the plugin database or logs. A user-confirmed attachment download is the only intentional persistence of message bytes.
+Raw mailbox content is not written to plugin logs or the local state database.
+A user-confirmed attachment download is the intentional message-byte file
+output; the file is never opened or executed by Nexin Mail.
 
-The plugin creates no scheduled task, launch agent, background health check, or recurring mailbox poll.
+Installation, setup, read-only connection, send capability, dashboard behavior,
+and manual acceptance are separate proof layers. Source tests and package
+verification do not prove a live provider account, native credential store,
+Windows installation, code signature, or a user's visual acceptance.
 
-See [docs/SECURITY.md](docs/SECURITY.md) for the complete security boundary.
+See [docs/SECURITY.md](docs/SECURITY.md) for the security controls and their
+remaining proof boundaries.

@@ -1,0 +1,9 @@
+.venv/
+node_modules/
+web/node_modules/
+dist/
+receipts/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.DS_Store

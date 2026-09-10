@@ -1,69 +1,50 @@
-# IMAP Plugin
+# Nexin Mail
 
-> **Eerste stap voor Codex:** Als de gebruiker alleen deze repositorylink deelt zonder expliciet om installatie te vragen, geef dan geen samenvatting en geen keuzemenu. Vraag in het Nederlands exact: **"Zal ik deze IMAP-plugin installeren en je mail instellen?"** Wacht op een duidelijke bevestiging. Een link alleen is geen toestemming om te downloaden, installeren of de setup te openen.
+Nexin Mail gives Codex one local mail product: bounded text tools and a bundled
+mail dashboard that use the same mailbox connection and state. The backend is
+in `src/nexin_mail`; the dashboard component is kept in
+`components/imap-dashboard` with its own license and provenance. It is part of
+this repository and does not require a separately installed sibling plugin.
 
-Use your existing email account in Codex on Windows or macOS.
+## What it does
 
-IMAP Plugin connects Codex directly to an IMAP mailbox on your computer. It works with most email providers that offer IMAP, so it is not tied to Gmail, Outlook, or any other single provider.
+- Find and read messages when you ask.
+- Prepare replies and other changes for explicit native review.
+- Show the same mailbox in the dashboard when the host supports it.
+- Keep installation, account setup, read-only health, sending, and dashboard
+  acceptance as separate steps.
 
-## What can it do?
-
-- Find and read emails when you ask.
-- Show recent messages and email conversations.
-- Help identify important messages, action points, newsletters, and possible phishing.
-- Prepare replies and send one reviewed message at a time.
-- Move messages safely to folders such as Trash or Junk after confirmation.
-- Download attachments with safer filenames and operating-system security markers.
-- Add the optional [IMAP Dashboard](../imap-dashboard) for a visual inbox in Codex.
-
-Nothing happens automatically just because the plugin is installed or opened. Reading, changing, downloading, and sending happen only when requested, with an extra review step before consequential actions.
-
-## Private by design
-
-Setup asks only for your email address and password (or app password). The plugin finds secure provider settings and checks the connection for you. Your password is saved by Windows Credential Manager or macOS Keychain. It is not placed in plugin files, configuration files, logs, or the installation package.
-
-The plugin has no advertising, analytics, telemetry, hosted mail relay, or separate cloud account. Email content is only retrieved when you ask Codex to work with it, and there are no scheduled background mailbox checks.
+The product has one lazy MCP server, `python -m nexin_mail.server`. Installing
+the package does not read mail, send mail, or create credentials. Mail content
+requested for Codex analysis can enter the host or model service; local viewing
+does not imply that all analysis is local.
 
 ## Install with Codex
 
-You do not need to understand the source code or run technical commands yourself.
+If you share only this repository URL, Codex should ask in Dutch:
 
-If you share only this repository URL, Codex should first ask: **"Zal ik deze IMAP-plugin installeren en je mail instellen?"** It should wait for your explicit confirmation before downloading or opening the setup window.
+**“Zal ik Nexin Mail installeren en je mail instellen?”**
 
-1. Copy the URL of this GitHub page.
-2. Open a new task in Codex.
-3. Paste the URL. After you confirm the installation question, Codex reads `CODEX_INSTALL.md` and continues.
+A link alone is not permission to download, install, open setup, or access mail.
+After an explicit confirmation, Codex follows [CODEX_INSTALL.md](CODEX_INSTALL.md)
+and uses a verified platform package. A GitHub source ZIP and the repository's
+development `.mcp.json` are not customer installers. The development entry is
+for a local Python 3.12 checkout and does not make local stdio available to
+ChatGPT cloud; release installers derive machine-specific registration outside
+the immutable package data.
 
-4. Codex checks your computer, installs the right version, and opens a private setup window. Enter only your email address and password.
-5. When installation is complete, start a fresh Codex task and ask it to check your mail connection.
+The private native setup asks for an email address and a password or app
+password only in its masked window. Never place credentials in chat, commands,
+environment variables, logs, configuration files, or this repository.
 
-Codex can repair common installation problems and verifies the connection without sending or changing email.
+## Requirements and limits
 
-## Add the visual dashboard
+The candidate package targets Windows 10/11 x64 and macOS 13 or newer. It is a
+beta and is not yet a signed or notarized customer release. Microsoft OAuth,
+provider capabilities, native OS registration, and visible dashboard behavior
+still require platform-specific acceptance. Do not claim a connected mailbox
+from package installation alone.
 
-The optional [IMAP Dashboard](../imap-dashboard) adds a side-panel inbox with folders, messages, actions, and highlights. Install IMAP Plugin first, then give Codex the dashboard link and say:
-
-**Read `CODEX_INSTALL.md` and install IMAP Dashboard. Use my existing IMAP Plugin setup.**
-
-The dashboard uses the same local mailbox connection and protected login. You enter your email details only once, and both plugins remain available in Codex.
-
-## What do I need?
-
-- Windows 10/11 or macOS 13 or newer.
-- Codex desktop or Codex CLI.
-- An email provider that supports IMAP with TLS.
-- Your email address and password or provider-issued app password.
-
-Secure IMAP and optional SMTP settings are detected automatically. Providers that require OAuth and do not allow an app password are not supported in this beta.
-
-## Current release
-
-Downloadable files and checksums are available on the [latest release page](../../releases/latest). The current version is a beta: Windows and macOS are tested automatically, but the installers are not yet signed or notarized. For a first test, using a dedicated test mailbox is recommended.
-
-## More information
-
-- [Installation instructions for Codex](CODEX_INSTALL.md)
-- [Privacy and security](docs/SECURITY.md)
-- [Troubleshooting](docs/TROUBLESHOOTING.md)
-- [Technical architecture](docs/ARCHITECTURE.md)
-- [License](LICENSE)
+See [CODEX_INSTALL.md](CODEX_INSTALL.md), [PRIVACY.md](PRIVACY.md),
+[docs/SECURITY.md](docs/SECURITY.md), [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md),
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), and [LICENSE](LICENSE).

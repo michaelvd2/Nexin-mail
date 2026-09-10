@@ -1,0 +1,14 @@
+{
+  "product": "nexin-mail",
+  "version": "0.2.0",
+  "components": {
+    "imap-plugin": {
+      "commit": "789f39b2c337918de3907519dc6232ba25e22cb5",
+      "version": "0.1.4"
+    },
+    "imap-dashboard": {
+      "commit": "9e0f3c95bc83788293afbfcdf11d565e9b548811",
+      "version": "0.1.2"
+    }
+  }
+}

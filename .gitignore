@@ -13,3 +13,9 @@ htmlcov/
 *.tmp
 config.toml
 *.zip
+
+.DS_Store
+
+._*
+
+/nexin-mail/WORKLOG.md

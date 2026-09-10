@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools==84.0.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "imap-dashboard"
+version = "0.1.2"
+description = "Optional Codex side-panel UI for an existing local IMAP Plugin connection"
+requires-python = ">=3.12,<3.13"
+license = "MIT"
+dependencies = ["mcp==2.1.1"]
+
+[project.scripts]
+imap-dashboard = "imap_dashboard.server:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+imap_dashboard = ["ui/*.html"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

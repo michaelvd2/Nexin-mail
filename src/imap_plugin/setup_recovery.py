@@ -40,7 +40,55 @@ _ROUTES = {
     "password_login_disabled": (
         "authentication", "Deze server staat deze wachtwoordlogin niet toe.",
         ["Controleer de officiele ondersteunde inlogmethode."],
-        "Stop wachtwoordpogingen. Leg uit wanneer OAuth nodig is; deze setup implementeert geen OAuth.", None),
+        "Stop wachtwoordpogingen. Kies voor Microsoft een officiele browseraanmelding; behoud de gemaskeerde route voor providers die wachtwoorden ondersteunen.", None),
+    "oauth_unconfigured": (
+        "authentication", "Microsoft-aanmelding is nog niet voor deze installatie geconfigureerd.",
+        ["Controleer alleen de lokale niet-geheime OAuth-configuratie.",
+         "Een clientregistratie ontbreekt; verzin geen client-ID of app-secret."],
+        "Laat de beheerder een geldige Microsoft public-clientregistratie configureren en meld daarna lokaal aan.",
+        None),
+    "oauth_consent_required": (
+        "authentication", "Microsoft vraagt aanvullende toestemming voor deze mailbox.",
+        ["Controleer de gevraagde IMAP-toestemming en tenant-beleid via Microsoft.",
+         "SMTP-toestemming wordt alleen gevraagd wanneer verzenden bewust is ingeschakeld."],
+        "Laat de gebruiker of tenantbeheerder de officiele Microsoft-toestemming beoordelen; de plugin omzeilt dit niet.",
+        None),
+    "oauth_reauth_required": (
+        "authentication", "De lokale Microsoft-aanmelding is verlopen of ingetrokken.",
+        ["Controleer alleen de beschermde lokale cache en de actuele accountstatus.",
+         "Een mailactie waarvan de uitkomst onzeker is wordt niet opnieuw uitgevoerd."],
+        "Open de lokale Microsoft-aanmelding opnieuw; herhaal geen mogelijk uitgevoerde mailactie automatisch.",
+        "De gebruiker heeft de nieuwe Microsoft-aanmelding lokaal afgerond en de bedoelde actie is nog niet uitgevoerd."),
+    "oauth_browser_unavailable": (
+        "authentication", "De lokale Microsoft-browseraanmelding kon niet worden geopend.",
+        ["Controleer de desktopcontext en of een standaardbrowser beschikbaar is.",
+         "Gebruik geen device-code, onbekende URL of wachtwoordroute als stille fallback."],
+        "Herstel de lokale browserstart en start daarna één bewuste aanmeldpoging.",
+        "Een ondersteunde lokale browsercontext is beschikbaar en er loopt geen eerdere aanmelding."),
+    "oauth_cancelled": (
+        "authentication", "De Microsoft-aanmelding is geannuleerd.",
+        ["Controleer alleen de lokale setupstatus.",
+         "Een annulering geeft geen toestemming om opnieuw te starten."],
+        "Start Microsoft-aanmelding alleen opnieuw op uitdrukkelijk lokaal verzoek.",
+        None),
+    "oauth_identity_invalid": (
+        "authentication", "De accountidentiteit van Microsoft kon niet worden gevalideerd.",
+        ["Controleer de officiele accountselectie en tenantcontext.",
+         "Gebruik geen losse ID-tokenclaims om account of endpoint te kiezen."],
+        "Stop de aanmelding en controleer de account- of tenantregistratie via Microsoft.",
+        None),
+    "oauth_cache_corrupt": (
+        "local_storage", "De beschermde Microsoft-aanmeldcache faalt de integriteitscontrole.",
+        ["Controleer alleen de native Credential Manager- of Keychain-items.",
+         "Verwijder geen onbekende credentials en exporteer geen cachemateriaal."],
+        "Herstel de lokale Microsoft-aanmelding via het native venster; een cachefout wordt niet met een bestandfallback omzeild.",
+        None),
+    "smtp_auth_disabled": (
+        "authentication", "SMTP AUTH is voor deze Microsoft-mailbox niet beschikbaar.",
+        ["Controleer tenantbeleid en SMTP AUTH-instellingen via Microsoft.",
+         "Behoud een bewezen IMAP-leesverbinding; verzenden blijft afzonderlijk uitgeschakeld."],
+        "Schakel SMTP AUTH alleen via het officiele tenantbeleid in of gebruik de mailbox uitsluitend om te lezen.",
+        None),
     "tls_failed": (
         "tls", "De beveiligde serververbinding is niet bevestigd.",
         ["Controleer de officiele servernaam, transportinstelling en lokale klok zonder instellingen te wijzigen."],

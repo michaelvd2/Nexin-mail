@@ -11,6 +11,8 @@ from typing import Any, Callable, Iterable
 
 from .config import AccountConfig
 from .contracts import canonical_digest
+from .credentials import platform_store
+from .oauth import OAuthError, oauth_provider_for, smtp_xoauth2_authenticator
 
 
 class SendError(RuntimeError):
@@ -126,11 +128,17 @@ class MailSender:
     def __init__(
         self,
         settings: AccountConfig,
-        secret_reader: Callable[[str], str],
+        secret_reader: Callable[[str], str] | None = None,
         transport_factory: Callable[[AccountConfig, ssl.SSLContext], Any] | None = None,
+        oauth_token_provider: Any | None = None,
     ) -> None:
         self.settings = settings
         self.secret_reader = secret_reader
+        if self.secret_reader is None and not settings.microsoft_oauth:
+            self.secret_reader = platform_store().read_secret
+        self.oauth_token_provider = oauth_token_provider
+        if self.oauth_token_provider is None and settings.microsoft_oauth:
+            self.oauth_token_provider = oauth_provider_for(settings)
         self.transport_factory = transport_factory or self._open_transport
 
     @staticmethod
@@ -161,10 +169,13 @@ class MailSender:
         client = None
         try:
             client = self.transport_factory(self.settings, context)
-            client.login(
-                self.settings.smtp_login,
-                self.secret_reader(self.settings.smtp_credential_target),
-            )
+            if self.settings.microsoft_oauth:
+                self._authenticate_oauth(client, force_refresh=False)
+            else:
+                client.login(
+                    self.settings.smtp_login,
+                    self.secret_reader(self.settings.smtp_credential_target),
+                )
             invoked_send = True
             refused = client.send_message(
                 message,
@@ -200,6 +211,40 @@ class MailSender:
         raw = message.as_bytes(policy=SMTP)
         return SendResult(str(message["Message-ID"]), send_digest(message), raw)
 
+    def _oauth_access_token(self, *, force_refresh: bool) -> str:
+        provider = self.oauth_token_provider
+        if provider is None:
+            raise SendError("Microsoft authentication is not configured")
+        try:
+            if callable(provider):
+                return provider("smtp", force_refresh=force_refresh)
+            return provider.get_access_token("smtp", force_refresh=force_refresh)
+        except OAuthError as exc:
+            raise SendError("Microsoft authentication requires local sign-in") from exc
+        except Exception as exc:
+            raise SendError("Microsoft authentication failed") from exc
+
+    def _authenticate_oauth(self, client: Any, *, force_refresh: bool) -> int:
+        token = self._oauth_access_token(force_refresh=force_refresh)
+        try:
+            code, _ = client.auth(
+                "XOAUTH2",
+                smtp_xoauth2_authenticator(self.settings.smtp_login, token),
+            )
+        except smtplib.SMTPAuthenticationError as exc:
+            if not force_refresh:
+                return self._authenticate_oauth(client, force_refresh=True)
+            raise SendError("SMTP authentication failed") from exc
+        except Exception as exc:
+            if not force_refresh:
+                return self._authenticate_oauth(client, force_refresh=True)
+            raise SendError("SMTP authentication failed") from exc
+        if int(code) not in (235, 503):
+            if not force_refresh:
+                return self._authenticate_oauth(client, force_refresh=True)
+            raise SendError("SMTP authentication failed")
+        return int(code)
+
     def probe(self) -> dict[str, Any]:
         """Authenticate over verified TLS without submitting a message."""
         if not self.settings.send_configured:
@@ -210,10 +255,13 @@ class MailSender:
         client = None
         try:
             client = self.transport_factory(self.settings, context)
-            client.login(
-                self.settings.smtp_login,
-                self.secret_reader(self.settings.smtp_credential_target),
-            )
+            if self.settings.microsoft_oauth:
+                self._authenticate_oauth(client, force_refresh=False)
+            else:
+                client.login(
+                    self.settings.smtp_login,
+                    self.secret_reader(self.settings.smtp_credential_target),
+                )
             code, _ = client.noop()
             if int(code) >= 400:
                 raise SendError("SMTP health check was rejected")

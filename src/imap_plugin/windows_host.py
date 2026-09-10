@@ -29,12 +29,16 @@ def powershell_command(script: Path) -> list[str]:
         try:
             result = subprocess.run(
                 [str(path), "-NoLogo", "-NoProfile", "-NonInteractive", "-Command",
-                 "@{effective=[string](Get-ExecutionPolicy); machine=[string](Get-ExecutionPolicy -Scope MachinePolicy); user=[string](Get-ExecutionPolicy -Scope UserPolicy)} | ConvertTo-Json -Compress"],
+                 "@{effective=[string](Get-ExecutionPolicy); machine=[string](Get-ExecutionPolicy -Scope MachinePolicy); user=[string](Get-ExecutionPolicy -Scope UserPolicy); language=[string]($ExecutionContext.SessionState.LanguageMode)} | ConvertTo-Json -Compress"],
                 capture_output=True, text=True, timeout=15, check=False,
             )
             if result.returncode:
                 continue
             policy = json.loads(result.stdout)
+            if policy.get("language") in {"ConstrainedLanguage", "RestrictedLanguage", "NoLanguage"}:
+                raise PowerShellUnavailable("De beperkte PowerShell-taalmodus blokkeert het beveiligde setupvenster. Vraag je beheerder om een goedgekeurde installatie; de plugin omzeilt deze beperking niet.")
+            if policy.get("language") != "FullLanguage":
+                continue
             if policy.get("effective") == "Restricted":
                 if any(policy.get(scope) not in {None, "Undefined"} for scope in ("machine", "user")):
                     raise PowerShellUnavailable("Het organisatiebeleid blokkeert scripts. Vraag je beheerder om een goedgekeurde installatie; de plugin wijzigt dit beleid niet.")

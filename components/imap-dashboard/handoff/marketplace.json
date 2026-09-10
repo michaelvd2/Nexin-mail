@@ -1,0 +1,20 @@
+{
+  "name": "imap-plugin-handoff",
+  "interface": {
+    "displayName": "IMAP Plugins"
+  },
+  "plugins": [
+    {
+      "name": "imap-dashboard",
+      "source": {
+        "source": "local",
+        "path": "./plugins/imap-dashboard"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_USE"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

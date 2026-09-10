@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "imap-dashboard": {
+      "type": "stdio",
+      "title": "IMAP Dashboard",
+      "description": "Optional side-panel UI using the already-installed local IMAP Plugin backend and its native credential store.",
+      "cwd": ".",
+      "command": "cmd.exe",
+      "args": ["/d", "/s", "/c", "call", ".\\scripts\\launch.cmd"],
+      "startup_timeout_sec": 20,
+      "tool_timeout_sec": 360
+    }
+  }
+}

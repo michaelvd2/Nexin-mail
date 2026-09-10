@@ -9,7 +9,8 @@ import pytest
 from imap_plugin.approval import ApprovalError
 from imap_plugin.contracts import MessageRef
 from imap_plugin.operator import MailOperator, OperatorError
-from imap_plugin.server import ACTION_TOOLS, READ_TOOLS, build_server
+from imap_plugin.server import ACTION_TOOLS, READ_TOOLS, build_server as build_legacy_server
+from nexin_mail.server import build_server as build_unified_server
 
 
 def payload(result):
@@ -18,15 +19,16 @@ def payload(result):
 
 
 def test_server_uses_one_display_title():
-    server = build_server()
-    assert server._lowlevel_server.name == "imap-plugin"
+    server = build_unified_server()
+    assert server._lowlevel_server.name == "nexin-mail"
     assert server._lowlevel_server.title is None
     config = json.loads((Path(__file__).parents[1] / ".mcp.json").read_text(encoding="utf-8"))
-    assert "title" not in config["mcpServers"]["imap"]
+    assert set(config["mcpServers"]) == {"mail"}
+    assert "title" not in config["mcpServers"]["mail"]
 
 
 def test_standalone_registry_is_exact_and_excludes_unsafe_raw_surface():
-    names = {tool.name for tool in asyncio.run(build_server().list_tools())}
+    names = {tool.name for tool in asyncio.run(build_legacy_server().list_tools())}
     assert names == set(READ_TOOLS + ACTION_TOOLS)
     assert not names.intersection(
         {
@@ -58,7 +60,7 @@ def test_standalone_registry_is_exact_and_excludes_unsafe_raw_surface():
 
 def test_setup_status_works_before_customer_configuration(monkeypatch, tmp_path):
     monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
-    result = asyncio.run(build_server().call_tool("setup_status", {}))
+    result = asyncio.run(build_legacy_server().call_tool("setup_status", {}))
     assert payload(result) == {
         "configured": False,
         "platform": "windows" if platform.system() == "Windows" else "macos",
@@ -89,7 +91,7 @@ class StubBridge:
 
 def test_native_review_cancellation_does_not_commit():
     operator = StubOperator()
-    server = build_server(profile="operator", bridge=StubBridge(), operator=operator, reviewer=lambda *_: False)
+    server = build_legacy_server(profile="operator", bridge=StubBridge(), operator=operator, reviewer=lambda *_: False)
     result = asyncio.run(
         server.call_tool(
             "review_save_draft",
@@ -103,7 +105,7 @@ def test_native_review_cancellation_does_not_commit():
 
 def test_native_review_confirmation_commits_exactly_once():
     operator = StubOperator()
-    server = build_server(profile="operator", bridge=StubBridge(), operator=operator, reviewer=lambda *_: True)
+    server = build_legacy_server(profile="operator", bridge=StubBridge(), operator=operator, reviewer=lambda *_: True)
     result = asyncio.run(
         server.call_tool(
             "review_save_draft",
@@ -234,7 +236,7 @@ class FeatureOperator:
 
 def test_pack_change_always_crosses_native_review():
     cancelled = FeatureOperator()
-    server = build_server(
+    server = build_legacy_server(
         profile="operator", bridge=StubBridge(), operator=cancelled, reviewer=lambda *_: False
     )
     result = asyncio.run(
@@ -247,7 +249,7 @@ def test_pack_change_always_crosses_native_review():
     assert cancelled.saves == 0
 
     confirmed = FeatureOperator()
-    server = build_server(
+    server = build_legacy_server(
         profile="operator", bridge=StubBridge(), operator=confirmed, reviewer=lambda *_: True
     )
     result = asyncio.run(
@@ -313,14 +315,14 @@ def test_bulk_unsubscribe_cancellation_contacts_nothing_and_confirmation_runs_on
     operator.inspect_cleanup = lambda folder, uid: inspections[uid]
     monkeypatch.setattr("imap_plugin.operator.validate_public_https_url", lambda value: value)
 
-    server = build_server(profile="operator", bridge=bridge, operator=operator, reviewer=lambda *_: False)
+    server = build_legacy_server(profile="operator", bridge=bridge, operator=operator, reviewer=lambda *_: False)
     result = asyncio.run(
         server.call_tool("review_bulk_unsubscribe", {"folder": "INBOX", "message_refs": refs})
     )
     assert payload(result)["result"] == "cancelled"
     assert calls == []
 
-    server = build_server(profile="operator", bridge=bridge, operator=operator, reviewer=lambda *_: True)
+    server = build_legacy_server(profile="operator", bridge=bridge, operator=operator, reviewer=lambda *_: True)
     result = asyncio.run(
         server.call_tool("review_bulk_unsubscribe", {"folder": "INBOX", "message_refs": refs})
     )

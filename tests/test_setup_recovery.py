@@ -56,7 +56,7 @@ def test_windows_host_honors_organization_restriction(monkeypatch):
     monkeypatch.setenv("IMAP_PLUGIN_POWERSHELL", "pwsh.exe")
     monkeypatch.setattr(Path, "is_file", lambda _: True)
     def run(*args, **kwargs):
-        return SimpleNamespace(returncode=0, stdout=json.dumps({"effective": "Restricted", "machine": "Restricted", "user": "Undefined"}))
+        return SimpleNamespace(returncode=0, stdout=json.dumps({"effective": "Restricted", "machine": "Restricted", "user": "Undefined", "language": "FullLanguage"}))
     monkeypatch.setattr(windows_host.subprocess, "run", run)
     with pytest.raises(windows_host.PowerShellUnavailable, match="organisatiebeleid"):
         windows_host.powershell_command(Path("enroll_gui.ps1"))
@@ -66,7 +66,7 @@ def test_windows_host_keeps_file_policy_enforcement(monkeypatch):
     monkeypatch.setenv("IMAP_PLUGIN_POWERSHELL", "pwsh.exe")
     monkeypatch.setattr(Path, "is_file", lambda _: True)
     monkeypatch.setattr(windows_host.subprocess, "run", lambda *a, **k: SimpleNamespace(returncode=0,
-        stdout=json.dumps({"effective": "RemoteSigned", "machine": "Undefined", "user": "Undefined"})))
+        stdout=json.dumps({"effective": "RemoteSigned", "machine": "Undefined", "user": "Undefined", "language": "FullLanguage"})))
     command = windows_host.powershell_command(Path("enroll_gui.ps1"))
     assert command[-2:] == ["-File", "enroll_gui.ps1"]
     assert "-ExecutionPolicy" not in command

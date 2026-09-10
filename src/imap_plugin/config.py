@@ -13,9 +13,22 @@ DEFAULT_HOST = ""
 DEFAULT_PORT = 993
 DEFAULT_TARGET = "imap-plugin/imap"
 DEFAULT_SMTP_TARGET = "imap-plugin/smtp"
+MICROSOFT_AUTH_METHOD = "microsoft"
+PASSWORD_AUTH_METHOD = "password"
+MICROSOFT_IMAP_HOST = "outlook.office365.com"
+MICROSOFT_SMTP_HOST = "smtp.office365.com"
+OUTLOOK_SMTP_HOST = "smtp-mail.outlook.com"
+MICROSOFT_CONSUMER_TENANT_ID = "9188040d-6c67-4c5b-b112-36a304b66dad"
 
 
 HOST_LABEL_RE = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$")
+GUID_RE = re.compile(
+    # Microsoft tenant/client IDs are canonical UUID strings.  The UUID
+    # version and variant bits are not part of the provider's contract, so
+    # validate the shape without rejecting a provider-issued all-zero/test ID.
+    r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+    re.IGNORECASE,
+)
 
 
 def _validated_hostname(value: str, field: str) -> str:
@@ -76,6 +89,11 @@ class AccountConfig:
     max_message_bytes: int = 262_144
     trace_max_bytes: int = 262_144
     trace_files: int = 3
+    auth_method: str = PASSWORD_AUTH_METHOD
+    oauth_client_id: str | None = None
+    oauth_tenant_id: str | None = None
+    oauth_cache_target: str | None = None
+    oauth_account_type: str | None = None
 
     def __post_init__(self) -> None:
         username = self.username.strip()
@@ -84,6 +102,17 @@ class AccountConfig:
         object.__setattr__(self, "username", username)
         if not self.account_id or len(self.account_id) > 64 or not re.fullmatch(r"[A-Za-z0-9._-]+", self.account_id):
             raise ValueError("account_id must use 1..64 letters, digits, dot, underscore, or hyphen")
+        if not isinstance(self.auth_method, str) or self.auth_method not in {PASSWORD_AUTH_METHOD, MICROSOFT_AUTH_METHOD}:
+            raise ValueError("auth_method must be password or microsoft")
+        # An unconfigured Microsoft account still gets a safe endpoint preset
+        # so callers can reach the typed ``oauth_unconfigured`` state without
+        # inventing a host or placing a placeholder in config.
+        if self.auth_method == MICROSOFT_AUTH_METHOD and not self.host:
+            if self.port != DEFAULT_PORT or self.imap_security != "implicit_tls":
+                raise ValueError("Microsoft IMAP must use the fixed verified endpoint")
+            object.__setattr__(self, "host", MICROSOFT_IMAP_HOST)
+            object.__setattr__(self, "port", 993)
+            object.__setattr__(self, "imap_security", "implicit_tls")
         object.__setattr__(self, "host", _validated_hostname(self.host, "host"))
         if not 1 <= self.port <= 65535:
             raise ValueError("IMAP port must be 1..65535")
@@ -116,6 +145,37 @@ class AccountConfig:
             if "@" not in address or any(char in address for char in "\r\n\x00"):
                 raise ValueError("email_address must be a single valid-looking address")
             object.__setattr__(self, "email_address", address)
+        for field in ("oauth_client_id", "oauth_tenant_id"):
+            value = getattr(self, field)
+            if value is not None:
+                if not isinstance(value, str) or GUID_RE.fullmatch(value.strip()) is None:
+                    raise ValueError(f"{field} must be a canonical UUID")
+                object.__setattr__(self, field, value.strip().lower())
+        if self.oauth_account_type is not None:
+            if not isinstance(self.oauth_account_type, str) or self.oauth_account_type not in {"microsoft365", "outlook.com"}:
+                raise ValueError("oauth_account_type must be microsoft365 or outlook.com")
+        if self.oauth_cache_target is not None:
+            target = self.oauth_cache_target
+            expected = f"imap-plugin/oauth-cache/{self.account_id}"
+            if target != expected:
+                raise ValueError("oauth_cache_target must be the account-scoped native target")
+        if self.auth_method == MICROSOFT_AUTH_METHOD:
+            if self.host != MICROSOFT_IMAP_HOST or self.port != 993 or self.imap_security != "implicit_tls":
+                raise ValueError("Microsoft IMAP must use the fixed verified endpoint")
+            if self.smtp_host is not None and self.smtp_host not in {MICROSOFT_SMTP_HOST, OUTLOOK_SMTP_HOST}:
+                raise ValueError("Microsoft SMTP must use a fixed verified endpoint")
+            if self.smtp_host is not None and (self.smtp_port != 587 or self.smtp_security != "starttls"):
+                raise ValueError("Microsoft SMTP must use verified STARTTLS")
+            if self.oauth_tenant_id == MICROSOFT_CONSUMER_TENANT_ID:
+                if self.oauth_account_type not in {None, "outlook.com"}:
+                    raise ValueError("consumer Microsoft accounts must use the Outlook.com account type")
+                if self.smtp_host is not None and self.smtp_host != OUTLOOK_SMTP_HOST:
+                    raise ValueError("consumer Microsoft accounts must use the Outlook.com SMTP endpoint")
+            elif self.oauth_tenant_id is not None:
+                if self.oauth_account_type not in {None, "microsoft365"}:
+                    raise ValueError("organization Microsoft accounts must use the Microsoft 365 account type")
+                if self.smtp_host is not None and self.smtp_host != MICROSOFT_SMTP_HOST:
+                    raise ValueError("organization Microsoft accounts must use the Microsoft 365 SMTP endpoint")
         if not isinstance(self.operator_enabled, bool):
             raise ValueError("operator_enabled must be true or false")
         if not isinstance(self.trusted_authserv_ids, (list, tuple)) or len(self.trusted_authserv_ids) > 10:
@@ -145,6 +205,18 @@ class AccountConfig:
     @property
     def smtp_login(self) -> str:
         return self.smtp_username or self.username
+
+    @property
+    def microsoft_oauth(self) -> bool:
+        return self.auth_method == MICROSOFT_AUTH_METHOD
+
+    @property
+    def oauth_configured(self) -> bool:
+        return self.microsoft_oauth and self.oauth_client_id is not None and self.oauth_tenant_id is not None
+
+    @property
+    def oauth_store_target(self) -> str:
+        return self.oauth_cache_target or f"imap-plugin/oauth-cache/{self.account_id}"
 
 
 # Concise import name used by the installer and tests.

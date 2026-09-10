@@ -5,6 +5,7 @@ import hmac
 import secrets
 import threading
 import time
+from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Callable, Iterable, Mapping
@@ -42,6 +43,11 @@ class ApprovalStore:
         self.max_pending = max_pending
         self.clock = clock
         self._pending: dict[str, ApprovalBinding] = {}
+        # Proposal ids are non-secret correlation ids. The one-use handle and
+        # exact payload remain in this process and never cross MCP.
+        self._proposal_keys: dict[str, str] = {}
+        self._proposal_handles: dict[str, str] = {}
+        self._proposal_payloads: dict[str, Mapping[str, Any]] = {}
         self._lock = threading.Lock()
 
     @staticmethod
@@ -60,6 +66,11 @@ class ApprovalStore:
         expired = [key for key, binding in self._pending.items() if binding.expires_at_epoch <= now]
         for key in expired:
             self._pending.pop(key, None)
+        for proposal_id, key in list(self._proposal_keys.items()):
+            if key not in self._pending:
+                self._proposal_keys.pop(proposal_id, None)
+                self._proposal_handles.pop(proposal_id, None)
+                self._proposal_payloads.pop(proposal_id, None)
 
     def prepare(
         self,
@@ -89,6 +100,7 @@ class ApprovalStore:
         proposal_digest = canonical_digest(proposal_data)
         handle = secrets.token_urlsafe(32)
         key = self._handle_key(handle)
+        proposal_id = secrets.token_hex(8)
         binding = ApprovalBinding(
             ui_session_id=session,
             action=action,
@@ -103,8 +115,11 @@ class ApprovalStore:
             if len(self._pending) >= self.max_pending:
                 raise ApprovalError("too many pending approvals; close older review dialogs")
             self._pending[key] = binding
+            self._proposal_keys[proposal_id] = key
+            self._proposal_handles[proposal_id] = handle
+            self._proposal_payloads[proposal_id] = deepcopy(dict(payload))
         proposal = ActionProposal(
-            proposal_id=secrets.token_hex(8),
+            proposal_id=proposal_id,
             action=action,
             targets=target_tuple,
             before_state=dict(before_state),
@@ -113,6 +128,50 @@ class ApprovalStore:
             warnings=tuple(warnings),
         )
         return proposal, handle
+
+    @staticmethod
+    def _validate_proposal_id(proposal_id: str) -> str:
+        if not isinstance(proposal_id, str) or len(proposal_id) != 16:
+            raise ApprovalError("proposal id is missing or invalid")
+        try:
+            int(proposal_id, 16)
+        except ValueError as exc:
+            raise ApprovalError("proposal id is invalid") from exc
+        return proposal_id.casefold()
+
+    def _handle_for_proposal(self, proposal_id: str) -> str:
+        """Return a pending secret to trusted in-process code only."""
+        proposal_id = self._validate_proposal_id(proposal_id)
+        now = self.clock()
+        with self._lock:
+            self._prune(now)
+            key = self._proposal_keys.get(proposal_id)
+            handle = self._proposal_handles.get(proposal_id)
+            if key is None or handle is None or key not in self._pending:
+                raise ApprovalError("proposal expired, was already used, or is not valid in this process")
+            return handle
+
+    def peek(self, proposal_id: str) -> dict[str, Any]:
+        """Return an exact non-secret binding snapshot for native review."""
+        proposal_id = self._validate_proposal_id(proposal_id)
+        now = self.clock()
+        with self._lock:
+            self._prune(now)
+            key = self._proposal_keys.get(proposal_id)
+            binding = self._pending.get(key) if key is not None else None
+            payload = self._proposal_payloads.get(proposal_id)
+            if binding is None or payload is None:
+                raise ApprovalError("proposal expired, was already used, or is not valid in this process")
+            return {
+                "proposal_id": proposal_id,
+                "action": binding.action,
+                "targets": [item.as_dict() for item in binding.targets],
+                "before_state": deepcopy(dict(binding.before_state)),
+                "payload": deepcopy(dict(payload)),
+                "payload_digest": binding.payload_digest,
+                "proposal_digest": binding.proposal_digest,
+                "expires_at_epoch": binding.expires_at_epoch,
+            }
 
     def consume(
         self,
@@ -135,6 +194,11 @@ class ApprovalStore:
         with self._lock:
             self._prune(now)
             binding = self._pending.pop(key, None)
+            for proposal_id, proposal_key in list(self._proposal_keys.items()):
+                if proposal_key == key:
+                    self._proposal_keys.pop(proposal_id, None)
+                    self._proposal_handles.pop(proposal_id, None)
+                    self._proposal_payloads.pop(proposal_id, None)
         if binding is None:
             raise ApprovalError("approval expired, was already used, or is not valid in this process")
         if binding.expires_at_epoch <= now:

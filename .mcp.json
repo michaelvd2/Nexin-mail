@@ -1,11 +1,15 @@
 {
   "mcpServers": {
-    "imap": {
-      "description": "Provider-independent local IMAP/SMTP connector with native local review for every change. Platform installers configure the matching launcher.",
+    "mail": {
+      "description": "Source-checkout development entry for Nexin Mail. It needs a local Python 3.12 environment; release installers derive the absolute machine-specific registration outside immutable package data. ChatGPT cloud does not automatically start this local stdio process.",
       "cwd": ".",
-      "command": "cmd.exe",
-      "args": ["/d", "/s", "/c", "call", ".\\scripts\\launch.cmd"],
-      "startup_timeout_sec": 20,
+      "command": "python",
+      "args": ["-B", "-X", "utf8", "-m", "nexin_mail.server"],
+      "env": {
+        "PYTHONPATH": "src",
+        "PYTHONDONTWRITEBYTECODE": "1"
+      },
+      "startup_timeout_sec": 30,
       "tool_timeout_sec": 660
     }
   }

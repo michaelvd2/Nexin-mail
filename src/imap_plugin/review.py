@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import platform
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -25,11 +26,31 @@ class SetupError(ReviewError):
 Reviewer = Callable[[str, Mapping[str, Any], bool], bool]
 
 
+_APPROVAL_KEY_RE = re.compile(r"(?:approval|confirm).*(?:handle|token|secret)|(?:handle|token|secret).*approval", re.IGNORECASE)
+
+
+def _contains_approval_material(value: Any) -> bool:
+    """Reject accidental export of the in-process approval capability."""
+    if isinstance(value, Mapping):
+        for key, child in value.items():
+            key_text = str(key).replace("-", "_")
+            if _APPROVAL_KEY_RE.search(key_text):
+                return True
+            if _contains_approval_material(child):
+                return True
+        return False
+    if isinstance(value, (list, tuple)):
+        return any(_contains_approval_material(child) for child in value)
+    return False
+
+
 def plugin_root() -> Path:
     return Path(__file__).resolve().parents[2]
 
 
 def native_review(title: str, payload: Mapping[str, Any], require_checkbox: bool = False) -> bool:
+    if _contains_approval_material(payload):
+        raise ReviewError("the native review payload cannot contain approval material")
     system = platform.system()
     if os.name == "nt":
         script = plugin_root() / "scripts" / "review.ps1"

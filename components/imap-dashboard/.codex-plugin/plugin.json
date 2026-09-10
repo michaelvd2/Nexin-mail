@@ -1,0 +1,24 @@
+{
+  "name": "imap-dashboard",
+  "version": "0.1.2",
+  "description": "A clear mailbox side panel for the existing IMAP Plugin connection on Windows or macOS.",
+  "author": {
+    "name": "IMAP Plugin contributors"
+  },
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "IMAP Dashboard",
+    "shortDescription": "Your IMAP mailbox in a side panel",
+    "longDescription": "Read and manage an IMAP mailbox from a clear Codex side panel. It uses the existing IMAP Plugin connection, so the mailbox login is entered only once and remains protected by the operating system.",
+    "developerName": "IMAP Plugin contributors",
+    "category": "Productivity",
+    "capabilities": ["Interactive", "Write"],
+    "defaultPrompt": [
+      "Open my IMAP Dashboard.",
+      "Show the most important action for the selected message.",
+      "Draft a reply without sending it."
+    ],
+    "brandColor": "#0F766E"
+  },
+  "mcpServers": "./.mcp.json"
+}
