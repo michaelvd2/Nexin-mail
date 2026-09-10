@@ -1,8 +1,3 @@
-[output summary: 367 lines / 16886 chars; artifact in diagnostics]
-signals:
--         except Exception:
--         print(json.dumps({"status": "fail", "error": str(exc)}, ensure_ascii=False))
-representative beginning:
 """Build a real, relocatable Nexin Mail package for macOS arm64.
 
 The runtime is downloaded from the pinned python-build-standalone release and
@@ -78,7 +73,232 @@ def _link_target(relative: tuple[str, ...], target: str) -> tuple[str, ...]:
         else:
             parts.append(part)
     if not parts:
-representative end:
+        raise ValueError("upstream archive link has no target")
+    return tuple(parts)
+
+
+def safe_extract(archive: Path, destination: Path) -> Path:
+    """Extract a trusted, hash-checked tarball while materializing safe links.
+
+    The archive currently contains nine relative convenience symlinks in
+    ``python/bin`` and ``python/lib/pkgconfig``.  They are copied as regular
+    files after every target is checked to stay inside the extracted root.
+    Hard links and special files are rejected because they add no value to the
+    runtime and complicate ownership and rollback guarantees.
+    """
+
+    archive = archive.resolve(strict=True)
+    destination = destination.resolve(strict=False)
+    if destination.exists():
+        raise ValueError("runtime extraction destination already exists")
+    destination.mkdir(parents=True)
+    files: dict[tuple[str, ...], tarfile.TarInfo] = {}
+    directories: set[tuple[str, ...]] = set()
+    links: dict[tuple[str, ...], tuple[str, ...]] = {}
+    with tarfile.open(archive, mode="r:gz") as stream:
+        members = stream.getmembers()
+        seen: set[tuple[str, ...]] = set()
+        for member in members:
+            relative = _relative_member(member.name)
+            if relative in seen:
+                raise ValueError("upstream archive contains duplicate paths")
+            seen.add(relative)
+            if member.isdir():
+                directories.add(relative)
+            elif member.isfile():
+                files[relative] = member
+            elif member.issym():
+                links[relative] = _link_target(relative, member.linkname)
+            elif member.islnk() or member.isdev() or member.isfifo():
+                raise ValueError("upstream archive contains an unsupported link or special file")
+            else:
+                raise ValueError("upstream archive contains an unsupported entry")
+
+        all_paths = set(files) | directories | set(links)
+        implicit_directories: set[tuple[str, ...]] = set(directories)
+        for path in all_paths:
+            implicit_directories.update(path[:index] for index in range(1, len(path)))
+        for path in all_paths:
+            for index in range(1, len(path)):
+                parent = path[:index]
+                if parent in files or parent in links:
+                    raise ValueError("upstream archive path collides with a file or link")
+        for path, target in links.items():
+            if target not in all_paths and target not in implicit_directories:
+                raise ValueError("upstream archive link target is missing")
+
+        for relative in sorted(directories):
+            (destination.joinpath(*relative)).mkdir(parents=True, exist_ok=True)
+        for relative in sorted(files):
+            target = destination.joinpath(*relative)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            member = files[relative]
+            extracted = stream.extractfile(member)
+            if extracted is None:
+                raise ValueError("upstream archive file could not be read")
+            with extracted, target.open("xb") as output:
+                shutil.copyfileobj(extracted, output)
+            target.chmod(member.mode & 0o777)
+
+    resolving: set[tuple[str, ...]] = set()
+
+    def materialize(relative: tuple[str, ...]) -> None:
+        if relative not in links:
+            return
+        if relative in resolving:
+            raise ValueError("upstream archive contains a link cycle")
+        resolving.add(relative)
+        target = links[relative]
+        materialize(target)
+        source = destination.joinpath(*target)
+        output = destination.joinpath(*relative)
+        if source.is_symlink() or not source.exists():
+            raise ValueError("upstream archive link target could not be materialized")
+        if source.is_dir():
+            shutil.copytree(source, output, symlinks=False)
+        elif source.is_file():
+            shutil.copyfile(source, output)
+            output.chmod(stat.S_IMODE(source.stat().st_mode))
+        else:
+            raise ValueError("upstream archive link target is not a regular file")
+        resolving.remove(relative)
+
+    for relative in sorted(links):
+        materialize(relative)
+    if any(item.is_symlink() for item in destination.rglob("*")):
+        raise ValueError("runtime extraction left a link behind")
+    return destination
+
+
+def _assert_plain_tree(root: Path) -> None:
+    if root.is_symlink():
+        raise ValueError(f"runtime path is a link: {root}")
+    for item in root.rglob("*"):
+        if item.is_symlink():
+            raise ValueError(f"runtime path is a link: {item}")
+        if not item.is_file() and not item.is_dir():
+            raise ValueError(f"runtime path is not a regular file or directory: {item}")
+
+
+def ensure_upstream_archive(artifact_root: Path) -> Path:
+    checksums = artifact_root / "SHA256SUMS"
+    if checksums.exists():
+        if not checksums.is_file() or checksums.is_symlink():
+            raise ValueError("upstream checksum manifest is not a regular file")
+    else:
+        partial_checksums = artifact_root / ("SHA256SUMS." + str(os.getpid()) + ".part")
+        if partial_checksums.exists():
+            raise ValueError("stale upstream checksum download exists; inspect it before retrying")
+        try:
+            with urllib.request.urlopen(PBA_CHECKSUM_URL, timeout=120) as response, partial_checksums.open("xb") as output:
+                shutil.copyfileobj(response, output)
+            os.replace(partial_checksums, checksums)
+        except Exception:
+            partial_checksums.unlink(missing_ok=True)
+            raise
+    checksum_rows = checksums.read_text(encoding="utf-8").splitlines()
+    expected_row = f"{PBA_SHA256}  {PBA_ARCHIVE}"
+    if expected_row not in checksum_rows:
+        raise ValueError("upstream checksum manifest does not attest the pinned runtime")
+    archive = artifact_root / PBA_ARCHIVE
+    if archive.exists():
+        if not archive.is_file() or archive.is_symlink() or sha256(archive) != PBA_SHA256:
+            raise ValueError("existing upstream runtime archive does not match its pinned hash")
+    else:
+        partial = artifact_root / (PBA_ARCHIVE + f".{os.getpid()}.part")
+        if partial.exists():
+            raise ValueError("stale runtime download exists; inspect it before retrying")
+        try:
+            with urllib.request.urlopen(PBA_URL, timeout=120) as response, partial.open("xb") as output:
+                shutil.copyfileobj(response, output)
+            if sha256(partial) != PBA_SHA256:
+                raise ValueError("downloaded upstream runtime hash mismatch")
+            os.replace(partial, archive)
+        except Exception:
+            partial.unlink(missing_ok=True)
+            raise
+    return archive
+
+
+def _run(runtime: Path, args: list[str], *, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
+    merged = dict(os.environ)
+    merged.update(env or {})
+    merged["PYTHONDONTWRITEBYTECODE"] = "1"
+    merged.pop("PYTHONPATH", None)
+    return subprocess.run([str(runtime), *args], cwd=str(runtime.parent.parent), env=merged,
+                          check=True, capture_output=True, text=True, encoding="utf-8", timeout=300)
+
+
+def install_locked_dependencies(runtime_root: Path, source_root: Path) -> dict[str, str]:
+    runtime = runtime_root / "bin" / "python3.12"
+    old_site = runtime_root / "lib" / "python3.12" / "site-packages"
+    target_site = runtime_root / "lib" / "python3.12" / ".nexin-dependencies"
+    if not runtime.is_file() or runtime.is_symlink() or not old_site.is_dir() or old_site.is_symlink():
+        raise ValueError("standalone runtime does not have the expected Python layout")
+    if target_site.exists():
+        raise ValueError("dependency staging path already exists")
+    lock = source_root / "requirements-runtime.lock"
+    command = [
+        "-B", "-m", "pip", "install", "--disable-pip-version-check", "--no-input",
+        "--only-binary=:all:", "--no-compile", "--require-hashes", "--target", str(target_site),
+        "--requirement", str(lock),
+    ]
+    _run(runtime, command, env={"PIP_NO_INPUT": "1"})
+    # ``pip --target`` may emit console launchers in a target-local ``bin``
+    # directory.  Their shebangs point at this build machine, so remove only
+    # those newly-created directories after checking they cannot escape the
+    # dependency staging root.
+    for launcher_dir in (target_site / "bin", target_site / "Scripts"):
+        if launcher_dir.is_symlink():
+            raise ValueError("dependency staging contains a launcher link")
+        if launcher_dir.exists():
+            if not launcher_dir.resolve(strict=True).is_relative_to(target_site.resolve(strict=True)):
+                raise ValueError("dependency launcher path escaped staging root")
+            shutil.rmtree(launcher_dir)
+    backup = runtime_root / "lib" / "python3.12" / ".upstream-site-packages"
+    if backup.exists():
+        raise ValueError("upstream site-packages backup already exists")
+    old_site.rename(backup)
+    target_site.rename(old_site)
+    shutil.rmtree(backup)
+    for name in ("pip", "pip3", "pip3.12"):
+        (runtime_root / "bin" / name).unlink(missing_ok=True)
+    _assert_plain_tree(runtime_root)
+    result = _run(runtime, [
+        "-B", "-c",
+        "import importlib.metadata; import mcp, msal; "
+        "print(importlib.metadata.version('mcp')); print(msal.__version__)",
+    ])
+    versions = result.stdout.strip().splitlines()
+    if len(versions) != 2:
+        raise ValueError("runtime dependency probe returned an unexpected result")
+    return {"mcp": versions[0], "msal": versions[1]}
+
+
+def build(source_root: Path, artifact_root: Path) -> dict[str, object]:
+    if sys.platform != "darwin" or platform_machine() != "arm64":
+        raise RuntimeError("this route requires a macOS arm64 build host")
+    source_root = source_root.resolve(strict=True)
+    artifact_root = artifact_root.resolve(strict=True)
+    archive = ensure_upstream_archive(artifact_root)
+    extracted = artifact_root / "runtime-macos-arm64"
+    safe_extract(archive, extracted)
+    runtime_root = extracted / "python"
+    runtime = runtime_root / "bin" / "python3.12"
+    if not runtime.is_file() or runtime.is_symlink():
+        raise ValueError("upstream runtime executable is missing")
+    probe = _run(runtime, ["-B", "-c", "import platform,sys; print(sys.version.split()[0]); print(platform.machine())"])
+    lines = probe.stdout.strip().splitlines()
+    if lines != [PYTHON_VERSION, "arm64"]:
+        raise ValueError(f"unexpected upstream runtime identity: {lines!r}")
+    dependency_versions = install_locked_dependencies(runtime_root, source_root)
+    marker = runtime_root / ".nexin-mail-platform"
+    marker.write_text("macos-arm64\n", encoding="utf-8")
+    package_root = artifact_root / f"nexin-mail-{PRODUCT_VERSION}-macos-arm64"
+    if package_root.exists():
+        raise ValueError("package output already exists; artifacts are immutable")
+    command = [
+        sys.executable, "-m", "nexin_mail.build", "--platform", "macos",
         "--source", str(source_root), "--runtime", str(runtime_root), "--output", str(package_root),
     ]
     environment = dict(os.environ)
@@ -144,3 +364,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    raise SystemExit(main())
