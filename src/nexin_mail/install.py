@@ -848,7 +848,9 @@ def _install(package: Path, destination: Path, codex: Path, events: list[dict[st
         "registration": "verified",
         "mailbox": "not_checked",
         "dashboard": "not_checked",
-        "next_step": "Start een nieuwe Codex-taak en laat Nexin Mail de beveiligde mailboxsetup openen.",
+        "status": "registration_only",
+        "installation_complete": False,
+        "next_step": "Registratie is gereed; mailboxsetup en verbindingscontrole zijn nog vereist.",
     }
 
 
@@ -1100,7 +1102,7 @@ def main() -> int:
     parser.add_argument("--migrate-legacy", action="store_true")
     parser.add_argument("--confirm-migration", action="store_true")
     parser.add_argument("--target-hash")
-    parser.add_argument("--setup", action="store_true", help="Continue into private native account setup")
+    parser.add_argument("--setup", action="store_true", default=True, help="Continue into private native account setup (default)")
     parser.add_argument("--skip-setup", action="store_false", dest="setup")
     args = parser.parse_args()
     events: list[dict[str, Any]] = []
@@ -1125,8 +1127,21 @@ def main() -> int:
         else:
             result = uninstall(destination, codex, events)
         if args.action == "install" and args.setup:
-            result["setup_session"] = _begin_setup(destination, result["package_hash"])
-            result["next_step"] = "Hervat setup_session met het exacte wait_command en pythonpath. Blijf stil wachten zolang invoer of controle loopt; vraag niet om klaar. Volg daarna next_action."
+            session = _begin_setup(destination, result["package_hash"])
+            result["setup_session"] = session
+            ready = session.get("status") == "ready" and session.get("mail_connection") == "verified"
+            result["installation_complete"] = ready
+            result["status"] = "ready" if ready else "setup_pending" if session.get("status") in {"starting", "waiting_for_input", "checking_connection"} else "setup_incomplete"
+            result["mailbox"] = "verified" if ready else "not_verified"
+            result["next_action"] = session.get("next_action", "inspect_setup_owner")
+            result["next_step"] = (
+                "Mailboxverbinding geverifieerd. Open render_mail_view en controleer het dashboard."
+                if ready else
+                "Installatie is nog niet afgerond. Volg setup_session.next_action. "
+                "Bij wait_setup: hervat het exacte wait_command met pythonpath en blijf stil wachten; "
+                "vraag niet om klaar en meld geen voltooide installatie. "
+                "Bij annulering of fout: meld dat de mailbox nog niet is gekoppeld."
+            )
         exit_code = 0
     except InstallError as exc:
         events.append(event(exc.stage, "blocked", exc.code))

@@ -2,7 +2,7 @@
 # Native macOS bootstrap. No system Python, package manager, or privilege change.
 set -eu
 repository=''
-release='v0.2.0-beta.3'
+release='v0.2.0-beta.4'
 codex=''
 prepare_only=0
 skip_setup=0

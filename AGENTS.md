@@ -13,6 +13,10 @@ mail. Ask in the user's language for explicit confirmation; in Dutch ask:
 “Zal ik Nexin Mail installeren en je mail instellen?” Proceed only after a clear
 confirmation or an explicit installation request.
 
+An explicit installation request includes private mailbox setup and verification.
+Follow `CODEX_INSTALL.md` through the same resumable session; do not stop at
+registration or ask for separate permission to connect the mailbox.
+
 Use the complete verified platform package for customer installation. The root
 `.mcp.json` is a source-checkout development entry for a local Python 3.12
 environment; it does not make local stdio available to ChatGPT cloud. Installed

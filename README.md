@@ -32,7 +32,7 @@ You do not need to choose a ZIP,
 install Python, or run commands yourself. Enter account credentials only in the
 private native setup window when you are ready to connect your mailbox.
 
-The [cross-platform beta release](../../releases/tag/v0.2.0-beta.3) provides
+The [cross-platform beta release](../../releases/tag/v0.2.0-beta.4) provides
 Windows x64 and Apple Silicon Mac packages with their own checksums
 and build provenance. This is an unsigned testing beta. Native OS prompts and
 account setup can still require your input. The automatic GitHub **Source code**

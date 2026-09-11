@@ -11,6 +11,15 @@ text only, respect that for this task. Never repeatedly reopen it and never
 open it for unrelated work. If close-state is not observable, do not infer it;
 open once and reopen only on request. Text tools remain available.
 
+A normal request to install Nexin Mail includes connecting the mailbox. Continue
+into the private account form automatically; do not require a separate request
+to connect it. Registration or process exit code 0 is not completed installation.
+The installer reports `installation_complete=false` until the mailbox connection
+is verified. Follow the same setup session through its bounded waits. Only a
+`ready` result with `mail_connection=verified` completes account setup; then open
+the dashboard once. Cancellation, failure, and explicit `--skip-setup` leave
+installation incomplete. Tell the user that state, never "installed and ready".
+
 For a requested installation, verify the published package before executing it.
 Use the complete platform package, not a GitHub source ZIP or system Python.
 Windows uses `install.cmd` and its private runtime; no pip, Node or admin account

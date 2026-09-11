@@ -63,6 +63,8 @@ def test_installs_immutable_payload_and_one_plugin_without_mailbox_access(packag
     dest = tmp_path / "Local AppData é/Nexin Mail"
     result = installer.install(package, dest, Path("codex.exe"), events, runner=calls)
     assert result["registration"] == "verified"
+    assert result["installation_complete"] is False
+    assert result["status"] == "registration_only"
     assert result["mailbox"] == result["dashboard"] == "not_checked"
     assert digest(package / "package-manifest.json") == before
     installed = dest / "packages" / before
@@ -433,3 +435,47 @@ def test_arm_is_unverified_and_codex_shims_are_not_executed(tmp_path, monkeypatc
     with pytest.raises(installer.InstallError) as failed:
         installer.preflight(str(shim))
     assert failed.value.code == "codex_unsupported"
+
+
+@pytest.mark.parametrize("session,complete,status", [
+    ({"status": "starting", "next_action": "wait_setup"}, False, "setup_pending"),
+    ({"status": "waiting_for_input", "next_action": "wait_setup"}, False, "setup_pending"),
+    ({"status": "checking_connection", "next_action": "wait_setup"}, False, "setup_pending"),
+    ({"status": "cancelled", "next_action": "stop"}, False, "setup_incomplete"),
+    ({"status": "failed", "next_action": "follow_recovery"}, False, "setup_incomplete"),
+    ({"status": "unconfirmed", "next_action": "inspect_setup_owner"}, False, "setup_incomplete"),
+    ({"status": "ready"}, False, "setup_incomplete"),
+    ({"status": "ready", "mail_connection": "verified", "next_action": "render_mail_view"}, True, "ready"),
+])
+def test_cli_install_includes_setup_and_never_confuses_registration_with_completion(
+    monkeypatch, tmp_path, capsys, session, complete, status
+):
+    calls = []
+    monkeypatch.setattr(sys, "argv", ["install", "--package", str(tmp_path), "--install-root", str(tmp_path)])
+    monkeypatch.setattr(sys, "platform", "darwin")
+    monkeypatch.setattr(installer, "preflight_macos", lambda _: Path("codex"))
+    monkeypatch.setattr(installer, "install", lambda *a, **kw: {"package_hash": "fixture", "registration": "verified"})
+    monkeypatch.setattr(installer, "_begin_setup", lambda *a: calls.append(a) or session)
+    monkeypatch.setattr(installer, "save_report", lambda *a: True)
+    assert installer.main() == 0
+    result = json.loads(capsys.readouterr().out)
+    assert len(calls) == 1
+    assert result["installation_complete"] is complete
+    assert result["status"] == status
+    assert result["setup_session"] == session
+    assert result["mailbox"] == ("verified" if complete else "not_verified")
+
+
+def test_cli_explicit_skip_setup_is_registration_only(monkeypatch, tmp_path, capsys):
+    monkeypatch.setattr(sys, "argv", ["install", "--package", str(tmp_path), "--install-root", str(tmp_path), "--skip-setup"])
+    monkeypatch.setattr(sys, "platform", "darwin")
+    monkeypatch.setattr(installer, "preflight_macos", lambda _: Path("codex"))
+    monkeypatch.setattr(installer, "install", lambda *a, **kw: {
+        "status": "registration_only", "installation_complete": False, "registration": "verified"})
+    monkeypatch.setattr(installer, "_begin_setup", lambda *a: pytest.fail("explicit skip must not open setup"))
+    monkeypatch.setattr(installer, "save_report", lambda *a: True)
+    assert installer.main() == 0
+    result = json.loads(capsys.readouterr().out)
+    assert result["status"] == "registration_only"
+    assert result["installation_complete"] is False
+    assert "setup_session" not in result

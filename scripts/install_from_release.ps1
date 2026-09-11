@@ -32,7 +32,7 @@ $work = Join-Path ([IO.Path]::GetTempPath()) ('nexin-mail-' + [Guid]::NewGuid().
 New-Item -ItemType Directory -Path $work | Out-Null
 Write-Output "Preserving download and diagnostics in $work"
 $asset = 'Nexin-Mail-0.2.0-windows-x64.zip'
-$base = "https://github.com/$Repository/releases/download/v0.2.0-beta.3"
+$base = "https://github.com/$Repository/releases/download/v0.2.0-beta.4"
 Invoke-WebRequest -UseBasicParsing -Uri "$base/SHA256SUMS-windows-x64.txt" -OutFile (Join-Path $work 'checksums.txt')
 $rows = @(Get-Content -LiteralPath (Join-Path $work 'checksums.txt') | Where-Object { $_ -match ('^[a-f0-9]{64}  ' + [regex]::Escape($asset) + '$') })
 if ($rows.Count -ne 1) { throw 'Invalid release checksum.' }

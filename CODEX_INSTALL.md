@@ -16,6 +16,15 @@ Python 3.12 checkout and does not make local stdio available to ChatGPT cloud.
 Installed packages generate absolute, machine-specific MCP registration as
 derived state outside the immutable package manifest.
 
+A normal request to install Nexin Mail includes connecting the mailbox. Continue
+into the private account form automatically; do not require a separate request
+to connect it. Registration or process exit code 0 is not completed installation.
+The installer reports `installation_complete=false` until the mailbox connection
+is verified. Follow the same setup session through its bounded waits. Only a
+`ready` result with `mail_connection=verified` completes account setup; then open
+the dashboard once. Cancellation, failure, and explicit `--skip-setup` leave
+installation incomplete. Tell the user that state, never "installed and ready".
+
 ## Safety rules
 
 - Never ask for, display, copy, or handle a mailbox password in chat, a command,
@@ -39,7 +48,7 @@ Read the source bootstrap from the same repository before running it. Derive
 `OWNER/REPO` from the user's exact GitHub repository URL or its verified origin;
 never substitute another repository. Use the repository's default-branch source
 for these bootstrap scripts, not an earlier plugin cache. The current bootstrap
-selects the explicit [v0.2.0-beta.3 release](../../releases/tag/v0.2.0-beta.3).
+selects the explicit [v0.2.0-beta.4 release](../../releases/tag/v0.2.0-beta.4).
 GitHub's `/releases/latest` excludes prereleases: use the tag endpoint or list
 including prereleases. No stable latest release does not mean no beta exists.
 
